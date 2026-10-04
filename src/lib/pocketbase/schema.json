@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-04T21:04:21.770Z",
+  "generatedAt": "2026-10-04T21:04:54.699Z",
   "collections": [
     {
       "name": "users",
@@ -467,6 +467,18 @@
           "type": "number",
           "required": false,
           "system": false
+        },
+        {
+          "name": "contador_manual",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "substituido_em",
+          "type": "date",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -480,9 +492,9 @@
       "apiRules": {
         "list": "@request.auth.id != ''",
         "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "create": "@request.auth.id != \"\" && (@request.body.origem != \"manual\" || @request.auth.perfil = \"tecnico_master\")",
+        "update": "@request.auth.id != \"\" && (origem != \"manual\" || @request.auth.perfil = \"tecnico_master\")",
+        "delete": "@request.auth.id != \"\" && (origem != \"manual\" || @request.auth.perfil = \"tecnico_master\")"
       },
       "fields": [
         {
@@ -559,6 +571,17 @@
           "type": "number",
           "required": false,
           "system": false
+        },
+        {
+          "name": "origem",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "contador",
+            "manual",
+            "media"
+          ]
         }
       ],
       "indexes": [
