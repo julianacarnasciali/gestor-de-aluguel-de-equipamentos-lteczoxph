@@ -6,6 +6,7 @@ const links = [
   { to: '/', label: 'Dashboard' },
   { to: '/empresas', label: 'Empresas' },
   { to: '/leituras', label: 'Leituras' },
+  { to: '/fechamentos', label: 'Fechamento' },
 ]
 
 export default function Layout() {

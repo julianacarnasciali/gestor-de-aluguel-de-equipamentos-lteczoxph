@@ -8,6 +8,7 @@ import Login from './pages/Login'
 import Empresas from './pages/Empresas'
 import Leituras from './pages/Leituras'
 import Conta from './pages/Conta'
+import Fechamentos from './pages/Fechamentos'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -55,6 +56,14 @@ const App = () => (
               element={
                 <RequireAuth>
                   <Conta />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/fechamentos"
+              element={
+                <RequireAuth>
+                  <Fechamentos />
                 </RequireAuth>
               }
             />

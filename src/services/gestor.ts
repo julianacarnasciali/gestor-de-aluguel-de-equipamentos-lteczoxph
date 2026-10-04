@@ -145,5 +145,42 @@ export const getLeiturasAll = () =>
 export const updateEquipamento = (id: string, data: Partial<Equipamento>) =>
   pb.collection('equipamentos').update<Equipamento>(id, data)
 
+export interface Fechamento {
+  id: string
+  contrato: string
+  empresa: string
+  competencia: string
+  paginas_consumidas: number
+  paginas_excedentes: number
+  vlr_impressoras: number
+  vlr_excedentes: number
+  vlr_dispositivos: number
+  vlr_servidores: number
+  vlr_servicos: number
+  desconto: number
+  total: number
+  tipo_documento: 'recibo' | 'fatura' | ''
+  data_emissao: string
+  data_vencimento: string
+  status: string
+  pdf: string
+  observacoes: string
+  forma_pgto: string
+  mostrar_periodo: boolean
+  desconto_percentual: number
+  desconto_valor: number
+  valor_final: number
+  periodo_de: string
+  periodo_ate: string
+}
+
+export const createFechamento = (data: Record<string, unknown>) =>
+  pb.collection('fechamentos').create<Fechamento>(data)
+export const getFechamentos = (competencia: string) =>
+  pb.collection('fechamentos').getFullList<Fechamento>({
+    filter: `competencia = "${competencia}"`,
+    expand: 'empresa,contrato',
+  })
+
 export const brl = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
