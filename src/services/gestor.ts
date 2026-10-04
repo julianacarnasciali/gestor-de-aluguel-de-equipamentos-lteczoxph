@@ -70,6 +70,8 @@ export interface Equipamento {
   ip: string
   descricao: string
   ativo: boolean
+  contador_manual: boolean
+  substituido_em: string
   expand?: { empresa?: Empresa; contrato?: Contrato }
 }
 
@@ -82,6 +84,7 @@ export interface Leitura {
   leitura_atual: number
   paginas_mes: number
   arquivo?: string
+  origem: 'contador' | 'manual' | 'media'
 }
 
 // ---------- Empresas ----------
@@ -138,6 +141,9 @@ export const getHistorico = async (equipamento: string, competencia: string) => 
 
 export const getLeiturasAll = () =>
   pb.collection('leituras').getFullList<Leitura>({ sort: '-created' })
+
+export const updateEquipamento = (id: string, data: Partial<Equipamento>) =>
+  pb.collection('equipamentos').update<Equipamento>(id, data)
 
 export const brl = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

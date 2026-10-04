@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { getLeiturasAll } from '@/services/gestor'
+import { getLeiturasAll, updateEquipamento } from '@/services/gestor'
+import { useAuth } from '@/hooks/use-auth'
 
 const competenciaAtual = () => {
   const d = new Date()
@@ -24,9 +25,13 @@ interface EstadoMaquina {
   at: string
   lancada: boolean
   alerta?: string | null
+  manual?: boolean
+  media?: boolean
 }
 
 export default function Leituras() {
+  const { user } = useAuth()
+  const ehMaster = user?.perfil === 'tecnico_master'
   const [competencia, setCompetencia] = useState(competenciaAtual())
   const [maquinas, setMaquinas] = useState<Equipamento[]>([])
   const [estados, setEstados] = useState<Record<string, EstadoMaquina>>({})
@@ -87,6 +92,8 @@ export default function Leituras() {
               at: '',
               lancada: false,
               alerta: null,
+              manual: !!eq.contador_manual,
+              media: false,
             }
           }
         }
@@ -114,13 +121,14 @@ export default function Leituras() {
     }
     setSalvando(eq.id)
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         equipamento: eq.id,
         contrato: eq.contrato,
         competencia,
         leitura_anterior: ant,
         leitura_atual: at,
         paginas_mes: Math.max(0, at - ant),
+        origem: est.manual ? 'manual' : 'contador',
       }
       if (est.lancada) {
         const l = await getLeituras(competencia)
@@ -136,6 +144,33 @@ export default function Leituras() {
           lancada: true,
           alerta: analisar(eq.id, ant, at, historico[eq.id] ?? []),
         },
+      }))
+    } finally {
+      setSalvando(null)
+    }
+  }
+
+  const lancarPelaMedia = async (eq: Equipamento) => {
+    setSalvando(eq.id)
+    try {
+      const hist = historico[eq.id] ?? []
+      const pags = hist.length
+        ? Math.round(hist.slice(0, 6).reduce((a, b) => a + b, 0) / Math.min(6, hist.length))
+        : 0
+      const antAtual = Number(estados[eq.id]?.ant || 0)
+      await createLeitura({
+        equipamento: eq.id,
+        contrato: eq.contrato,
+        competencia,
+        leitura_anterior: antAtual,
+        leitura_atual: antAtual + pags,
+        paginas_mes: pags,
+        origem: 'media',
+        observacoes: 'Leitura pela média (troca de hardware)',
+      })
+      setEstados((p) => ({
+        ...p,
+        [eq.id]: { ...p[eq.id], lancada: true, media: true, alerta: null },
       }))
     } finally {
       setSalvando(null)
@@ -222,6 +257,15 @@ export default function Leituras() {
                           <div className="min-w-48 flex-1">
                             <p className="font-medium text-sm">
                               {eq.patrimonio || eq.descricao || eq.id}
+                              {est.manual && (
+                                <Badge
+                                  variant="outline"
+                                  className="ml-2 border-amber-500 text-amber-700"
+                                >
+                                  manual — só técnico master
+                                </Badge>
+                              )}
+                              {est.media && <Badge className="ml-2 bg-teal-600">pela média</Badge>}
                             </p>
                             {eq.setor && (
                               <p className="text-xs text-muted-foreground">{eq.setor}</p>
@@ -246,55 +290,73 @@ export default function Leituras() {
                               </div>
                             )}
                           </div>
-                          <div className="w-28">
-                            <Label className="text-xs">Leitura anterior</Label>
-                            <Input
-                              inputMode="numeric"
-                              className="h-8"
-                              value={est.ant}
-                              onChange={(e) =>
-                                setEstados((p) => ({
-                                  ...p,
-                                  [eq.id]: { ...est, ant: e.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="w-28">
-                            <Label className="text-xs">Leitura atual</Label>
-                            <Input
-                              inputMode="numeric"
-                              className="h-8"
-                              value={est.at}
-                              onChange={(e) =>
-                                setEstados((p) => ({
-                                  ...p,
-                                  [eq.id]: { ...est, at: e.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="w-20 text-right text-sm text-muted-foreground">
-                            {pags} págs
-                          </div>
-                          <Button
-                            size="sm"
-                            className={
-                              est.alerta && !confirmados[eq.id]
-                                ? 'bg-amber-500 hover:bg-amber-600'
-                                : 'bg-teal-600 hover:bg-teal-700'
-                            }
-                            disabled={salvando === eq.id || !est.at}
-                            onClick={() => salvar(eq)}
-                          >
-                            {salvando === eq.id
-                              ? '...'
-                              : est.alerta && !confirmados[eq.id]
-                                ? 'Verificar'
-                                : est.lancada
-                                  ? 'Atualizar'
-                                  : 'Lançar'}
-                          </Button>
+                          {est.manual && !ehMaster ? (
+                            <p className="text-xs text-amber-700">
+                              🔒 Leitura manual — só o técnico master lança
+                            </p>
+                          ) : (
+                            <>
+                              <div className="w-28">
+                                <Label className="text-xs">Leitura anterior</Label>
+                                <Input
+                                  inputMode="numeric"
+                                  className="h-8"
+                                  value={est.ant}
+                                  onChange={(e) =>
+                                    setEstados((p) => ({
+                                      ...p,
+                                      [eq.id]: { ...est, ant: e.target.value },
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <div className="w-28">
+                                <Label className="text-xs">Leitura atual</Label>
+                                <Input
+                                  inputMode="numeric"
+                                  className="h-8"
+                                  value={est.at}
+                                  onChange={(e) =>
+                                    setEstados((p) => ({
+                                      ...p,
+                                      [eq.id]: { ...est, at: e.target.value },
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <div className="w-20 text-right text-sm text-muted-foreground">
+                                {pags} págs
+                              </div>
+                              <Button
+                                size="sm"
+                                className={
+                                  est.alerta && !confirmados[eq.id]
+                                    ? 'bg-amber-500 hover:bg-amber-600'
+                                    : 'bg-teal-600 hover:bg-teal-700'
+                                }
+                                disabled={salvando === eq.id || !est.at}
+                                onClick={() => salvar(eq)}
+                              >
+                                {salvando === eq.id
+                                  ? '...'
+                                  : est.alerta && !confirmados[eq.id]
+                                    ? 'Verificar'
+                                    : est.lancada
+                                      ? 'Atualizar'
+                                      : 'Lançar'}
+                              </Button>
+                              {ehMaster && est.manual && !est.lancada && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={salvando === eq.id}
+                                  onClick={() => lancarPelaMedia(eq)}
+                                >
+                                  Lançar pela média
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </div>
                       )
                     })}
