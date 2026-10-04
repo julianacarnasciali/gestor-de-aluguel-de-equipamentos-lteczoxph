@@ -29,14 +29,24 @@ export default function Conta() {
     }
     setSalvando(true)
     try {
-      await pb.collection('users').authWithPassword(user!.email, atual)
-      await pb.collection('users').update(user!.id, { password: nova, passwordConfirm: nova })
+      await pb.collection('users').update(user!.id, {
+        oldPassword: atual,
+        password: nova,
+        passwordConfirm: nova,
+      })
       setMsg('Senha alterada com sucesso!')
       setAtual('')
       setNova('')
       setConfirma('')
-    } catch {
-      setErro('Senha atual incorreta.')
+    } catch (err: unknown) {
+      const data = (err as { response?: { data?: Record<string, { message?: string }> } }).response
+        ?.data
+      const detalhe = data?.oldPassword?.message
+        ? 'A senha atual está incorreta.'
+        : data?.password?.message
+          ? `Nova senha inválida: ${data.password.message}`
+          : 'Não foi possível trocar a senha. Tente novamente.'
+      setErro(detalhe)
     } finally {
       setSalvando(false)
     }
