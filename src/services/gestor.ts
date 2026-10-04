@@ -1,5 +1,11 @@
 import pb from '@/lib/pocketbase/client'
 
+export interface Contato {
+  nome: string
+  setor: string
+  email: string
+}
+
 export interface Empresa {
   id: string
   nome: string
@@ -14,7 +20,10 @@ export interface Empresa {
   emite_nf: boolean
   ativo: boolean
   observacoes: string
-  expand?: { empresa?: Empresa }
+  tipo_cliente: 'contrato' | 'avulso' | ''
+  contatos: Contato[]
+  indicado_por: string
+  expand?: { indicado_por?: Empresa }
 }
 
 export interface Contrato {
@@ -43,11 +52,23 @@ export interface Contrato {
 
 export interface Equipamento {
   id: string
-  tipo: 'impressora' | 'dispositivo' | 'servidor'
+  tipo:
+    | 'impressora'
+    | 'computador'
+    | 'monitor'
+    | 'servidor'
+    | 'camera'
+    | 'central_telefonica'
+    | 'sistema_servico'
+    | 'outros'
   empresa: string
   contrato: string
   patrimonio: string
+  marca_modelo: string
+  numero_serie: string
   setor: string
+  ip: string
+  descricao: string
   ativo: boolean
   expand?: { empresa?: Empresa; contrato?: Contrato }
 }
@@ -64,7 +85,8 @@ export interface Leitura {
 }
 
 // ---------- Empresas ----------
-export const getEmpresas = () => pb.collection('empresas').getFullList<Empresa>({ sort: 'nome' })
+export const getEmpresas = () =>
+  pb.collection('empresas').getFullList<Empresa>({ sort: 'nome', expand: 'indicado_por' })
 export const updateEmpresa = (id: string, data: Partial<Empresa>) =>
   pb.collection('empresas').update<Empresa>(id, data)
 
@@ -79,18 +101,32 @@ export const getContratos = () =>
 export const getEquipamentos = () =>
   pb.collection('equipamentos').getFullList<Equipamento>({
     sort: 'patrimonio',
-    filter: pb.filter('tipo = {:t} && ativo = true', { t: 'impressora' }),
-    expand: 'empresa,contrato',
+    filter: 'tipo = "impressora" && ativo = true',
+    expand: 'empresa',
   })
 
 // ---------- Leituras ----------
 export const getLeituras = (competencia: string) =>
   pb.collection('leituras').getFullList<Leitura>({
-    filter: pb.filter('competencia = {:c}', { c: competencia }),
+    filter: `competencia = "${competencia}"`,
     expand: 'equipamento',
   })
 export const createLeitura = (data: Record<string, unknown>) =>
   pb.collection('leituras').create<Leitura>(data)
+export const updateLeitura = (id: string, data: Record<string, unknown>) =>
+  pb.collection('leituras').update<Leitura>(id, data)
+
+// ---------- leitura anterior (competência anterior, última lançada) ----------
+export const getLeituraAnterior = async (equipamento: string, competencia: string) => {
+  const [mes, ano] = competencia.split('/')
+  const d = new Date(Number(ano), Number(mes) - 2, 1)
+  const compAnterior = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+  const lista = await pb.collection('leituras').getList<Leitura>(1, 1, {
+    filter: `equipamento = "${equipamento}" && competencia = "${compAnterior}"`,
+    sort: '-created',
+  })
+  return lista.items[0] ?? null
+}
 
 export const brl = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

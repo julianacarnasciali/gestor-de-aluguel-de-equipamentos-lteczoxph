@@ -29,19 +29,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": [
@@ -131,19 +126,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "id_legado",
@@ -162,10 +152,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": [
-            "contrato",
-            "avulso"
-          ]
+          "selectValues": ["contrato", "avulso"]
         },
         {
           "name": "contatos",
@@ -181,9 +168,7 @@
           "collectionRef": "empresas"
         }
       ],
-      "indexes": [
-        "CREATE INDEX idx_empresas_nome ON empresas (nome)"
-      ]
+      "indexes": ["CREATE INDEX idx_empresas_nome ON empresas (nome)"]
     },
     {
       "name": "contratos",
@@ -250,10 +235,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": [
-            "leitura",
-            "media"
-          ]
+          "selectValues": ["leitura", "media"]
         },
         {
           "name": "paginas_media",
@@ -266,10 +248,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": [
-            "total",
-            "por_maquina"
-          ]
+          "selectValues": ["total", "por_maquina"]
         },
         {
           "name": "dia_leitura",
@@ -324,19 +303,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "id_legado",
@@ -345,9 +319,7 @@
           "system": false
         }
       ],
-      "indexes": [
-        "CREATE INDEX idx_contratos_empresa ON contratos (empresa)"
-      ]
+      "indexes": ["CREATE INDEX idx_contratos_empresa ON contratos (empresa)"]
     },
     {
       "name": "equipamentos",
@@ -437,19 +409,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "id_legado",
@@ -529,19 +496,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "id_legado",
@@ -550,9 +512,7 @@
           "system": false
         }
       ],
-      "indexes": [
-        "CREATE UNIQUE INDEX idx_leituras_unica ON leituras (equipamento, competencia)"
-      ]
+      "indexes": ["CREATE UNIQUE INDEX idx_leituras_unica ON leituras (equipamento, competencia)"]
     },
     {
       "name": "fechamentos",
@@ -644,10 +604,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": [
-            "documento",
-            "fatura"
-          ]
+          "selectValues": ["documento", "fatura"]
         },
         {
           "name": "data_emissao",
@@ -666,12 +623,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": [
-            "rascunho",
-            "emitido",
-            "enviado",
-            "pago"
-          ]
+          "selectValues": ["rascunho", "emitido", "enviado", "pago"]
         },
         {
           "name": "pdf",
@@ -690,24 +642,17 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
-      "indexes": [
-        "CREATE INDEX idx_fechamentos_contrato ON fechamentos (contrato, competencia)"
-      ]
+      "indexes": ["CREATE INDEX idx_fechamentos_contrato ON fechamentos (contrato, competencia)"]
     },
     {
       "name": "config",
@@ -779,19 +724,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": []
@@ -819,10 +759,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": [
-            "recorrente",
-            "extra"
-          ]
+          "selectValues": ["recorrente", "extra"]
         },
         {
           "name": "descricao",
@@ -853,19 +790,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": []
@@ -886,11 +818,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": [
-            "contrato",
-            "termo_entrega",
-            "termo_devolucao"
-          ]
+          "selectValues": ["contrato", "termo_entrega", "termo_devolucao"]
         },
         {
           "name": "titulo",
@@ -909,24 +837,17 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
-      "indexes": [
-        "CREATE UNIQUE INDEX idx_templates_tipo ON templates (tipo)"
-      ]
+      "indexes": ["CREATE UNIQUE INDEX idx_templates_tipo ON templates (tipo)"]
     },
     {
       "name": "pagamentos",
@@ -988,24 +909,17 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
-      "indexes": [
-        "CREATE INDEX idx_pagamentos_empresa ON pagamentos (empresa)"
-      ]
+      "indexes": ["CREATE INDEX idx_pagamentos_empresa ON pagamentos (empresa)"]
     },
     {
       "name": "documentos",
@@ -1071,24 +985,17 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
-      "indexes": [
-        "CREATE INDEX idx_documentos_fechamento ON documentos (fechamento)"
-      ]
+      "indexes": ["CREATE INDEX idx_documentos_fechamento ON documentos (fechamento)"]
     }
   ]
 }
