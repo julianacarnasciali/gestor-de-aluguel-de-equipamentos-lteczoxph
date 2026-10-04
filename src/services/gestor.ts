@@ -136,5 +136,8 @@ export const getHistorico = async (equipamento: string, competencia: string) => 
   return lista.items
 }
 
+export const getLeiturasAll = () =>
+  pb.collection('leituras').getFullList<Leitura>({ sort: '-created' })
+
 export const brl = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { getLeiturasAll } from '@/services/gestor'
 
 const competenciaAtual = () => {
   const d = new Date()
@@ -22,6 +23,7 @@ interface EstadoMaquina {
   ant: string
   at: string
   lancada: boolean
+  alerta?: string | null
 }
 
 export default function Leituras() {
@@ -31,11 +33,43 @@ export default function Leituras() {
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  const [historico, setHistorico] = useState<Record<string, number[]>>({})
+  const [confirmados, setConfirmados] = useState<Record<string, boolean>>({})
+
+  const analisar = (eqId: string, ant: number, at: number, hist: number[]): string | null => {
+    if (!at || at < 0) return null
+    const pags = Math.max(0, at - ant)
+    const base = hist.length >= 2 ? hist.slice(0, 6) : hist
+    if (base.length === 0) {
+      // sem histórico: só checagens básicas
+      if (pags === 0) return 'Leitura igual à anterior — 0 páginas no mês. Confere o relatório?'
+      return null
+    }
+    const media = base.reduce((a, b) => a + b, 0) / base.length
+    if (media <= 0) return null
+    const diff = (pags - media) / media
+    if (pags === 0 && media > 0)
+      return `0 páginas vs média de ${Math.round(media).toLocaleString('pt-BR')}/mês. Máquina ociosa ou leitura errada?`
+    if (diff > 0.5)
+      return `MUITO ACIMA do normal: ${pags.toLocaleString('pt-BR')} págs vs média ${Math.round(media).toLocaleString('pt-BR')} (+${Math.round(diff * 100)}%). Confere o relatório da máquina?`
+    if (diff < -0.5)
+      return `MUITO ABAIXO do normal: ${pags.toLocaleString('pt-BR')} págs vs média ${Math.round(media).toLocaleString('pt-BR')} (${Math.round(diff * 100)}%). Confere o relatório da máquina?`
+    return null
+  }
 
   const carregar = (comp: string) => {
     setCarregando(true)
-    Promise.all([getEquipamentos(), getLeituras(comp)])
-      .then(async ([eqs, leis]) => {
+    Promise.all([getEquipamentos(), getLeituras(comp), getLeiturasAll()])
+      .then(async ([eqs, leis, todas]) => {
+        // histórico de páginas por máquina (excluindo a competência em edição)
+        const hist: Record<string, number[]> = {}
+        for (const l of todas) {
+          if (l.competencia === comp) continue
+          if (!hist[l.equipamento]) hist[l.equipamento] = []
+          hist[l.equipamento].push(l.paginas_mes ?? 0)
+        }
+        setHistorico(hist)
+
         const est: Record<string, EstadoMaquina> = {}
         for (const eq of eqs) {
           const l = leis.find((x) => x.equipamento === eq.id)
@@ -44,6 +78,7 @@ export default function Leituras() {
               ant: String(l.leitura_anterior),
               at: String(l.leitura_atual),
               lancada: true,
+              alerta: analisar(eq.id, l.leitura_anterior, l.leitura_atual, hist[eq.id] ?? []),
             }
           } else {
             const anterior = await getLeituraAnterior(eq.id, comp)
@@ -51,6 +86,7 @@ export default function Leituras() {
               ant: anterior ? String(anterior.leitura_atual) : '',
               at: '',
               lancada: false,
+              alerta: null,
             }
           }
         }
@@ -70,6 +106,12 @@ export default function Leituras() {
     if (!est?.at) return
     const ant = Number(est.ant || est.at)
     const at = Number(est.at)
+    const alerta = analisar(eq.id, ant, at, historico[eq.id] ?? [])
+    // trava de verificação humana: alerta precisa ser confirmado antes de salvar
+    if (alerta && !confirmados[eq.id]) {
+      setEstados((p) => ({ ...p, [eq.id]: { ...est, alerta } }))
+      return
+    }
     setSalvando(eq.id)
     try {
       const payload = {
@@ -87,7 +129,14 @@ export default function Leituras() {
       } else {
         await createLeitura(payload)
       }
-      setEstados((p) => ({ ...p, [eq.id]: { ...est, lancada: true } }))
+      setEstados((p) => ({
+        ...p,
+        [eq.id]: {
+          ...est,
+          lancada: true,
+          alerta: analisar(eq.id, ant, at, historico[eq.id] ?? []),
+        },
+      }))
     } finally {
       setSalvando(null)
     }
@@ -177,6 +226,25 @@ export default function Leituras() {
                             {eq.setor && (
                               <p className="text-xs text-muted-foreground">{eq.setor}</p>
                             )}
+                            {est.alerta && (
+                              <div
+                                className={`mt-1 flex items-start gap-2 rounded-md border p-2 text-xs ${
+                                  confirmados[eq.id]
+                                    ? 'border-slate-200 bg-slate-50 text-slate-500'
+                                    : 'border-amber-300 bg-amber-50 text-amber-900'
+                                }`}
+                              >
+                                <span>⚠️ {est.alerta}</span>
+                                {!confirmados[eq.id] && (
+                                  <button
+                                    className="ml-auto whitespace-nowrap rounded bg-amber-600 px-2 py-0.5 text-white hover:bg-amber-700"
+                                    onClick={() => setConfirmados((p) => ({ ...p, [eq.id]: true }))}
+                                  >
+                                    Conferido — lançar mesmo assim
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div className="w-28">
                             <Label className="text-xs">Leitura anterior</Label>
@@ -211,11 +279,21 @@ export default function Leituras() {
                           </div>
                           <Button
                             size="sm"
-                            className="bg-teal-600 hover:bg-teal-700"
+                            className={
+                              est.alerta && !confirmados[eq.id]
+                                ? 'bg-amber-500 hover:bg-amber-600'
+                                : 'bg-teal-600 hover:bg-teal-700'
+                            }
                             disabled={salvando === eq.id || !est.at}
                             onClick={() => salvar(eq)}
                           >
-                            {salvando === eq.id ? '...' : est.lancada ? 'Atualizar' : 'Lançar'}
+                            {salvando === eq.id
+                              ? '...'
+                              : est.alerta && !confirmados[eq.id]
+                                ? 'Verificar'
+                                : est.lancada
+                                  ? 'Atualizar'
+                                  : 'Lançar'}
                           </Button>
                         </div>
                       )
