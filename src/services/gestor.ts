@@ -128,5 +128,13 @@ export const getLeituraAnterior = async (equipamento: string, competencia: strin
   return lista.items[0] ?? null
 }
 
+export const getHistorico = async (equipamento: string, competencia: string) => {
+  const lista = await pb.collection('leituras').getList<Leitura>(1, 6, {
+    filter: `equipamento = "${equipamento}" && competencia != "${competencia}"`,
+    sort: '-created',
+  })
+  return lista.items
+}
+
 export const brl = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
