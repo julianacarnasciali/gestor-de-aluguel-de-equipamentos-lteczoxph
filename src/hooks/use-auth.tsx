@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import pb from '@/lib/pocketbase/client'
 
 interface AuthContextType {
-  user: { id: string; email: string; name: string } | null
+  user: { id: string; email: string; name: string; perfil?: string } | null
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => void
 }
@@ -17,19 +17,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthContextType['user']>(null)
 
   useEffect(() => {
-    const m = pb.authStore.record as unknown as {
-      id?: string
-      email?: string
-      name?: string
-    } | null
-    if (m?.id) setUser({ id: m.id, email: m.email ?? '', name: m.name ?? '' })
+    const pega = (r: { id?: string; email?: string; name?: string; perfil?: string } | null) =>
+      r?.id ? { id: r.id, email: r.email ?? '', name: r.name ?? '', perfil: r.perfil } : null
+    setUser(
+      pega(
+        pb.authStore.record as unknown as {
+          id?: string
+          email?: string
+          name?: string
+          perfil?: string
+        } | null,
+      ),
+    )
     const unsub = pb.authStore.onChange(() => {
-      const r = pb.authStore.record as unknown as {
-        id?: string
-        email?: string
-        name?: string
-      } | null
-      setUser(r?.id ? { id: r.id, email: r.email ?? '', name: r.name ?? '' } : null)
+      setUser(
+        pega(
+          pb.authStore.record as unknown as {
+            id?: string
+            email?: string
+            name?: string
+            perfil?: string
+          } | null,
+        ),
+      )
     })
     return unsub
   }, [])
