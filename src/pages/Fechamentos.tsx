@@ -30,6 +30,7 @@ export default function Fechamentos() {
   const [fechamentos, setFechamentos] = useState<Record<string, unknown>>({})
   const [carregando, setCarregando] = useState(true)
   const [fechando, setFechando] = useState<string | null>(null)
+  const [filtro, setFiltro] = useState<'pendentes' | 'fechados' | 'todos'>('pendentes')
 
   // modal de lançamento
   const [modal, setModal] = useState<Contrato | null>(null)
@@ -178,58 +179,78 @@ export default function Fechamentos() {
       {carregando ? (
         <p className="text-muted-foreground">Carregando...</p>
       ) : (
-        <div className="space-y-3">
-          {contratos.map((c) => {
-            const x = calc(c)
-            const fechado = fechamentos[c.id]
-            const leiturasOk =
-              x.eqs.length === 0 ||
-              x.eqs.length ===
-                leituras.filter((l) => x.eqs.some((e) => e.id === l.equipamento)).length
-            return (
-              <Card key={c.id}>
-                <CardContent className="py-4 flex items-center gap-4 flex-wrap">
-                  <div className="flex-1 min-w-56">
-                    <p className="font-medium">{c.expand?.empresa?.nome ?? c.empresa}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {c.paginas_contratadas?.toLocaleString('pt-BR')} págs · exc.{' '}
-                      {brl(c.preco_excedente)}/pág
-                      {c.tipo_cobranca === 'media' ? ' · por média' : ''}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">págs do mês</p>
-                    <p className="font-semibold">{x.paginas.toLocaleString('pt-BR')}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">excedentes</p>
-                    <p className="font-semibold">{brl(x.vlrExcedentes)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">total</p>
-                    <p className="font-semibold text-teal-700">
-                      {fechado
-                        ? brl(Number((fechado as { total?: number }).total))
-                        : brl(x.subtotal)}
-                    </p>
-                  </div>
-                  {fechado ? (
-                    <Badge className="bg-teal-600">Fechado</Badge>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="bg-teal-600 hover:bg-teal-700"
-                      disabled={!leiturasOk || fechando === c.id}
-                      onClick={() => abrirModal(c)}
-                    >
-                      Fechar mês
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+        <>
+          <div className="flex gap-2 mb-4">
+            {(['pendentes', 'fechados', 'todos'] as const).map((f) => (
+              <Button
+                key={f}
+                size="sm"
+                variant={filtro === f ? 'default' : 'outline'}
+                className={filtro === f ? 'bg-teal-600 hover:bg-teal-700' : ''}
+                onClick={() => setFiltro(f)}
+              >
+                {f === 'pendentes' ? 'Pendentes' : f === 'fechados' ? 'Fechados' : 'Todos'}
+              </Button>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {contratos
+              .filter((c) => {
+                const fechado = !!fechamentos[c.id]
+                return filtro === 'todos' || (filtro === 'pendentes' ? !fechado : fechado)
+              })
+              .map((c) => {
+                const x = calc(c)
+                const fechado = fechamentos[c.id]
+                const leiturasOk =
+                  x.eqs.length === 0 ||
+                  x.eqs.length ===
+                    leituras.filter((l) => x.eqs.some((e) => e.id === l.equipamento)).length
+                return (
+                  <Card key={c.id}>
+                    <CardContent className="py-4 flex items-center gap-4 flex-wrap">
+                      <div className="flex-1 min-w-56">
+                        <p className="font-medium">{c.expand?.empresa?.nome ?? c.empresa}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {c.paginas_contratadas?.toLocaleString('pt-BR')} págs · exc.{' '}
+                          {brl(c.preco_excedente)}/pág
+                          {c.tipo_cobranca === 'media' ? ' · por média' : ''}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">págs do mês</p>
+                        <p className="font-semibold">{x.paginas.toLocaleString('pt-BR')}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">excedentes</p>
+                        <p className="font-semibold">{brl(x.vlrExcedentes)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">total</p>
+                        <p className="font-semibold text-teal-700">
+                          {fechado
+                            ? brl(Number((fechado as { total?: number }).total))
+                            : brl(x.subtotal)}
+                        </p>
+                      </div>
+                      {fechado ? (
+                        <Badge className="bg-teal-600">Fechado</Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="bg-teal-600 hover:bg-teal-700"
+                          disabled={!leiturasOk || fechando === c.id}
+                          onClick={() => abrirModal(c)}
+                        >
+                          Fechar mês
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+          </div>
+        </>
       )}
 
       <Dialog open={!!modal} onOpenChange={(open) => !open && setModal(null)}>
