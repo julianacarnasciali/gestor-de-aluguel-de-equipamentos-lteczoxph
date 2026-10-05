@@ -6,6 +6,7 @@ import {
   getFechamentos,
   createFechamento,
   brl,
+  pbExport as pb,
   type Contrato,
   type Equipamento,
   type Leitura,
@@ -124,14 +125,14 @@ export default function Fechamentos() {
         valor_final: total,
         desconto_percentual: Number(descontoPct) || 0,
         desconto_valor: Number(descontoVlr) || 0,
-        tipo_documento: modal.empresa.emite_nf ? 'fatura' : 'recibo',
+        tipo_documento: modal.empresa.emite_nf ? 'fatura' : 'documento',
         data_emissao: dataEmissao,
         data_vencimento: dataVenc,
         forma_pgto: formaPgto,
         mostrar_periodo: mostrarPeriodo,
         periodo_de: `05/${competencia}`,
         periodo_ate: `05/${competencia}`,
-        status: 'fechado',
+        status: 'emitido',
         observacoes: obs,
       })
       setModal(null)
@@ -234,7 +235,23 @@ export default function Fechamentos() {
                         </p>
                       </div>
                       {fechado ? (
-                        <Badge className="bg-teal-600">Fechado</Badge>
+                        <>
+                          <Badge className="bg-teal-600">Fechado</Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const f = fechado as { id?: string }
+                              if (f?.id)
+                                window.open(
+                                  `${pb.baseUrl}/backend/v1/fechamentos/${f.id}/pdf`,
+                                  '_blank',
+                                )
+                            }}
+                          >
+                            Ver PDF
+                          </Button>{' '}
+                        </>
                       ) : (
                         <Button
                           size="sm"
@@ -244,7 +261,7 @@ export default function Fechamentos() {
                         >
                           Fechar mês
                         </Button>
-                      )}
+                      )}{' '}
                     </CardContent>
                   </Card>
                 )

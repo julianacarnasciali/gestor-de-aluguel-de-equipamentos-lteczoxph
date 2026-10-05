@@ -139,6 +139,8 @@ export const getHistorico = async (equipamento: string, competencia: string) => 
   return lista.items
 }
 
+export const pbExport = pb
+
 export const getLeiturasAll = () =>
   pb.collection('leituras').getFullList<Leitura>({ sort: '-created' })
 
