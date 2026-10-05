@@ -274,6 +274,21 @@ export default function Fechamentos() {
                           >
                             Ver PDF
                           </Button>
+                          {(fechado as { asaas_boleto_url?: string }).asaas_boleto_url && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-teal-600 text-teal-700 hover:bg-teal-50"
+                              onClick={() =>
+                                window.open(
+                                  (fechado as { asaas_boleto_url?: string }).asaas_boleto_url,
+                                  '_blank',
+                                )
+                              }
+                            >
+                              Boleto
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
