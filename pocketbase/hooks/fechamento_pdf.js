@@ -51,7 +51,7 @@ routerAdd(
     const branco = rgb(1, 1, 1)
     const preto = rgb(0.1, 0.12, 0.14)
 
-    const doc = PDFDocument.create()
+    const doc = await PDFDocument.create()
     const font = doc.embedFont(StandardFonts.Helvetica)
     const fontB = doc.embedFont(StandardFonts.HelveticaBold)
     const page = doc.addPage([842, 595]) // A4 landscape (recibo mensal)
@@ -114,20 +114,25 @@ routerAdd(
     page.drawText(linhaRef, { x: 40, y: 440, size: 9, font, color: cinza })
 
     // ---- tabela de leituras por impressora ----
-    const eqs = $app.findRecordsByFilter(
-      'equipamentos',
-      "contrato = '" + contrato.id + "' && tipo = 'impressora'",
-      'patrimonio',
-      100,
-      0,
-    )
-    const leituras = $app.findRecordsByFilter(
-      'leituras',
-      "contrato = '" + contrato.id + "' && competencia = '" + comp + "'",
-      '',
-      200,
-      0,
-    )
+    const contratoId = contrato ? contrato.id : ''
+    const eqs = contratoId
+      ? $app.findRecordsByFilter(
+          'equipamentos',
+          "contrato = '" + contratoId + "' && tipo = 'impressora'",
+          'patrimonio',
+          100,
+          0,
+        )
+      : []
+    const leituras = contratoId
+      ? $app.findRecordsByFilter(
+          'leituras',
+          "contrato = '" + contratoId + "' && competencia = '" + comp + "'",
+          '',
+          200,
+          0,
+        )
+      : []
     const leitPorEq = {}
     for (const l of leituras) leitPorEq[l.getString('equipamento')] = l
 
