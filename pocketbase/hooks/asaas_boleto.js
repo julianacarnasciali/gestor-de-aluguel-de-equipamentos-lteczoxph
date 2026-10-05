@@ -173,10 +173,14 @@ onRecordAfterCreateSuccess((e) => {
           externalReference: rec.id,
         }
         if (paymentId) corpoNF.payment = paymentId
-        // impostos: locação de bens móveis não sofre ISS (SV 31); Simples recolhe via DAS
+        // impostos: serviço 14.02.01 (assistência técnica) SOFRE ISS — alíquota
+        // reduzida de Curitiba 2,01% (informada pela contabilidade 06/10).
+        // Simples: PIS/COFINS/CSLL/IR/INSS zerados na nota (recolhe via DAS).
+        // MÊS QUE VEM: contabilidade reavalia o código do serviço (14.02.01 é
+        // paliativo — locação pura não pode ter NF; decisão dela 06/10).
         corpoNF.taxes = {
           retainIss: false,
-          iss: 0,
+          iss: 2.01,
           pis: 0,
           cofins: 0,
           csll: 0,
