@@ -10,11 +10,9 @@ routerAdd('POST', '/backend/v1/asaas-proxy', (e) => {
     'Content-Type': 'application/json',
   }
   const path = String((body && body.path) || '/invoices')
-  const res = $http.send({
-    url: base + path,
-    method: String((body && body.method) || 'POST'),
-    headers,
-    body: JSON.stringify((body && body.payload) || {}),
-  })
+  const method = String((body && body.method) || 'POST')
+  const opts = { url: base + path, method, headers }
+  if (method !== 'GET') opts.body = JSON.stringify((body && body.payload) || {})
+  const res = $http.send(opts)
   return e.json(res.statusCode || 500, res.json)
 })
