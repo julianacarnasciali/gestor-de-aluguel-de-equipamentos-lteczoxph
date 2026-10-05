@@ -16,11 +16,11 @@ routerAdd('POST', '/backend/v1/webhooks/asaas', (e) => {
   const pagamento = (body && body.payment) || {}
   const paymentId = pagamento.id || ''
   console.log('[asaas-webhook] evento:', evento, 'payment:', paymentId)
-  if (!paymentId) return e.json(200, { ok: true, ignorado: 'sem payment.id' })
   if (
-    evento === 'PAYMENT_CONFIRMED' ||
-    evento === 'PAYMENT_RECEIVED' ||
-    evento === 'PAYMENT_RECEIVED_IN_CASH'
+    paymentId &&
+    (evento === 'PAYMENT_CONFIRMED' ||
+      evento === 'PAYMENT_RECEIVED' ||
+      evento === 'PAYMENT_RECEIVED_IN_CASH')
   ) {
     try {
       const f = $app.findFirstRecordByFilter(
