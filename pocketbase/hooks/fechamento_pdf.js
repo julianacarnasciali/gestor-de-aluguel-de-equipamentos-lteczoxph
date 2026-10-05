@@ -288,7 +288,10 @@ routerAdd(
     }
 
     const bytes = await doc.save()
-    return e.blob(200, 'application/pdf', bytes)
+    e.response.header().set('Content-Type', 'application/pdf')
+    e.response.header().set('Content-Disposition', 'inline; filename="fechamento-' + id + '.pdf"')
+    $response.write(e, bytes)
+    $response.flush(e)
   },
   $apis.requireAuth(),
 )
