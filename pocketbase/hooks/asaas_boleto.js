@@ -75,6 +75,41 @@ onRecordAfterCreateSuccess((e) => {
             JSON.stringify(r2.json).slice(0, 300),
           )
       }
+      // cliente existente pode estar sem e-mail/endereço (exigidos pela NFS-e) — atualiza
+      if (customerId && (email || enderecoTxt)) {
+        try {
+          const corpoUpd = {}
+          if (email) corpoUpd.email = email
+          if (enderecoTxt) {
+            const partes = enderecoTxt.split(',').map((s) => s.trim())
+            if (partes.length >= 4) {
+              corpoUpd.address = partes[0]
+              corpoUpd.addressNumber = partes[1]
+              const cidadeUf = partes[2].split('-').map((s) => s.trim())
+              corpoUpd.cityName = cidadeUf[0] || ''
+              corpoUpd.state = cidadeUf[1] || ''
+              corpoUpd.postalCode = partes[3].replace(/\D/g, '')
+            }
+          }
+          if (Object.keys(corpoUpd).length > 0) {
+            const rU = $http.send({
+              url: base + '/customers/' + customerId,
+              method: 'PUT',
+              headers,
+              body: JSON.stringify(corpoUpd),
+            })
+            if (rU.statusCode !== 200) {
+              console.warn(
+                '[asaas] atualizar customer falhou',
+                rU.statusCode,
+                JSON.stringify(rU.json).slice(0, 300),
+              )
+            }
+          }
+        } catch (errU) {
+          console.warn('[asaas] erro update customer', errU)
+        }
+      }
       if (customerId && empresa && !empresa.getString('asaas_customer_id')) {
         empresa.set('asaas_customer_id', customerId)
         $app.save(empresa)
