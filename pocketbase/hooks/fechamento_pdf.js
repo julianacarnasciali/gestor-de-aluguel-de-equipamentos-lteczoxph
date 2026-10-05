@@ -5,7 +5,7 @@
 routerAdd(
   'GET',
   '/backend/v1/fechamentos/{id}/pdf',
-  (e) => {
+  async (e) => {
     const { PDFDocument, StandardFonts, rgb } = require('pdf-lib')
 
     const id = e.request.pathValue('id')
@@ -282,8 +282,7 @@ routerAdd(
       if (line.trim()) page.drawText(line, { x: 40, y: ry, size: 6.8, font, color: cinza })
     }
 
-    const bytes = doc.save()
-    const file = $filesystem.fileFromBytes(bytes, 'fechamento-' + id + '.pdf')
+    const bytes = await doc.save()
     return e.blob(200, 'application/pdf', bytes)
   },
   $apis.requireAuth(),
