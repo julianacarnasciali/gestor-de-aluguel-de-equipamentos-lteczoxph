@@ -288,10 +288,10 @@ routerAdd(
     }
 
     const bytes = await doc.save()
-    e.response.header().set('Content-Type', 'application/pdf')
-    e.response.header().set('Content-Disposition', 'inline; filename="fechamento-' + id + '.pdf"')
-    $response.write(e, bytes)
-    $response.flush(e)
+    const file = $filesystem.fileFromBytes(bytes, 'fechamento-' + id + '.pdf')
+    fech.set('pdf', file)
+    $app.save(fech)
+    return e.redirect(302, '/api/files/fechamentos/' + id + '/fechamento-' + id + '.pdf')
   },
   $apis.requireAuth(),
 )
