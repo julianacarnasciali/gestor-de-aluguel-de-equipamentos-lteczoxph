@@ -2,7 +2,7 @@ import { getFechamentosContrato, brl, type Fechamento } from '@/services/gestor'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default function TimelineContrato({ contratoId }: { contratoId: string }) {
+export function TimelineContrato({ contratoId }: { contratoId: string }) {
   const [fechs, setFechs] = useState<Fechamento[]>([])
   const [carregando, setCarregando] = useState(true)
 
