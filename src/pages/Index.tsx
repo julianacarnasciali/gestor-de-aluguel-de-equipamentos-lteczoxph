@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/use-auth'
+import { TimelineContrato } from '@/components/TimelineContrato'
 
 const competenciaAtual = () => {
   const d = new Date()
@@ -96,26 +97,29 @@ export default function Index() {
             <CardContent>
               <div className="divide-y">
                 {ativos.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="font-medium">{c.expand?.empresa?.nome ?? c.empresa}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {c.paginas_contratadas.toLocaleString('pt-BR')} págs · excedente{' '}
-                        {brl(c.preco_excedente)}/pág · venc. dia {c.dia_vencimento}
-                        {c.tipo_cobranca === 'media' ? ' · por média' : ''}
-                      </p>
+                  <div key={c.id} className="py-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{c.expand?.empresa?.nome ?? c.empresa}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {c.paginas_contratadas.toLocaleString('pt-BR')} págs · excedente{' '}
+                          {brl(c.preco_excedente)}/pág · venc. dia {c.dia_vencimento}
+                          {c.tipo_cobranca === 'media' ? ' · por média' : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold">
+                          {brl(
+                            (c.mensalidade ?? 0) +
+                              (c.vlr_dispositivos ?? 0) +
+                              (c.vlr_servidores ?? 0) +
+                              (c.vlr_servicos ?? 0),
+                          )}
+                        </span>
+                        <Badge className="bg-teal-600">Ativo</Badge>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold">
-                        {brl(
-                          (c.mensalidade ?? 0) +
-                            (c.vlr_dispositivos ?? 0) +
-                            (c.vlr_servidores ?? 0) +
-                            (c.vlr_servicos ?? 0),
-                        )}
-                      </span>
-                      <Badge className="bg-teal-600">Ativo</Badge>
-                    </div>
+                    <TimelineContrato contratoId={c.id} />
                   </div>
                 ))}
               </div>

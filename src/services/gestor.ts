@@ -184,5 +184,11 @@ export const getFechamentos = (competencia: string) =>
     expand: 'empresa,contrato',
   })
 
+export const getFechamentosContrato = (contratoId: string) =>
+  pb.collection('fechamentos').getFullList<Fechamento>({
+    filter: `contrato = "${contratoId}"`,
+    sort: '-competencia',
+  })
+
 export const brl = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
