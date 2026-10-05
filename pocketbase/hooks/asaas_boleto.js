@@ -145,7 +145,7 @@ onRecordAfterCreateSuccess((e) => {
         const municipalServiceCode = $secrets.get('ASAAS_MUNICIPAL_SERVICE_CODE')
         if (municipalServiceId) corpoNF.municipalServiceId = municipalServiceId
         else if (municipalServiceCode) corpoNF.municipalServiceCode = municipalServiceCode
-        else corpoNF.municipalServiceName = 'Locação de bens móveis'
+        corpoNF.municipalServiceName = corpoNF.municipalServiceName || 'Locação de bens móveis'
 
         const rNF = $http.send({
           url: base + '/invoices',
