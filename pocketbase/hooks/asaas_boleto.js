@@ -130,32 +130,22 @@ onRecordAfterCreateSuccess((e) => {
           ir: 0,
           inss: 0,
         }
-        let municipalServiceId = $secrets.get('ASAAS_MUNICIPAL_SERVICE_ID')
-        if (!municipalServiceId) {
-          // descobre o serviço municipal cadastrado nas informações fiscais da conta
-          try {
-            const rS = $http.send({ url: base + '/fiscalInfo/services', method: 'GET', headers })
-            if (rS.statusCode === 200 && Array.isArray(rS.json.data) && rS.json.data.length > 0) {
-              const alvo = rS.json.data.find((s) =>
-                String(s.name || '')
-                  .toLowerCase()
-                  .includes('loca'),
-              )
-              municipalServiceId = (alvo || rS.json.data[0]).id
-              console.log(
-                '[asaas] serviço municipal:',
-                municipalServiceId,
-                (alvo || rS.json.data[0]).name,
-              )
-            }
-          } catch (errS) {
-            console.warn('[asaas] listar fiscalInfo/services falhou', errS)
+        // serviço municipal: id 477686 da lista causou 500 unknow.error no sandbox —
+        // o DTO aceita só o NOME (id/code são opcionais). Log da lista p/ diagnóstico.
+        try {
+          const rS = $http.send({ url: base + '/fiscalInfo/services', method: 'GET', headers })
+          if (rS.statusCode === 200 && Array.isArray(rS.json.data) && rS.json.data.length > 0) {
+            console.log(
+              '[asaas] fiscalInfo/services[0]:',
+              JSON.stringify(rS.json.data[0]).slice(0, 400),
+            )
           }
+        } catch (errS) {
+          console.warn('[asaas] listar fiscalInfo/services falhou', errS)
         }
         const municipalServiceCode = $secrets.get('ASAAS_MUNICIPAL_SERVICE_CODE')
-        if (municipalServiceId) corpoNF.municipalServiceId = municipalServiceId
-        else if (municipalServiceCode) corpoNF.municipalServiceCode = municipalServiceCode
-        corpoNF.municipalServiceName = corpoNF.municipalServiceName || 'Locação de bens móveis'
+        if (municipalServiceCode) corpoNF.municipalServiceCode = municipalServiceCode
+        corpoNF.municipalServiceName = 'Locação de bens móveis'
 
         const rNF = $http.send({
           url: base + '/invoices',
