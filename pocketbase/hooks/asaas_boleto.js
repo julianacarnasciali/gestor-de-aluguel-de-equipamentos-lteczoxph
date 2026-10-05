@@ -66,6 +66,7 @@ onRecordAfterCreateSuccess((e) => {
     }
 
     // 3) boleto
+    let paymentId = ''
     try {
       if (customerId) {
         const r3 = $http.send({
@@ -84,12 +85,13 @@ onRecordAfterCreateSuccess((e) => {
           }),
         })
         if (r3.statusCode === 200) {
+          paymentId = r3.json.id || ''
           rec.set('asaas_customer_id', customerId)
-          rec.set('asaas_payment_id', r3.json.id || '')
+          rec.set('asaas_payment_id', paymentId)
           rec.set('asaas_boleto_url', r3.json.bankSlipUrl || '')
           rec.set('asaas_linha_digitavel', r3.json.identificationField || '')
           $app.save(rec)
-          console.log('[asaas] boleto criado', r3.json.id, 'para fechamento', rec.id)
+          console.log('[asaas] boleto criado', paymentId, 'para fechamento', rec.id)
         } else {
           console.warn(
             '[asaas] criar payment falhou',
@@ -100,6 +102,52 @@ onRecordAfterCreateSuccess((e) => {
       }
     } catch (err) {
       console.warn('[asaas] erro payment', err)
+    }
+
+    // 4) NFS-e (somente empresas que emitem nota) — agendada vinculada ao boleto
+    try {
+      if (customerId && empresa && empresa.getBool('emite_nf')) {
+        const corpoNF = {
+          customer: customerId,
+          value: total,
+          deductions: 0,
+          effectiveDate: String(
+            rec.getString('data_emissao') || rec.getString('data_vencimento') || '',
+          ).slice(0, 10),
+          serviceDescription:
+            'Locação de equipamentos — competência ' + rec.getString('competencia'),
+          observations: 'Ref. contrato de locação de bens móveis — LCCA Tecnologia',
+          externalReference: rec.id,
+        }
+        if (paymentId) corpoNF.payment = paymentId
+        const municipalServiceId = $secrets.get('ASAAS_MUNICIPAL_SERVICE_ID')
+        const municipalServiceCode = $secrets.get('ASAAS_MUNICIPAL_SERVICE_CODE')
+        if (municipalServiceId) corpoNF.municipalServiceId = municipalServiceId
+        else if (municipalServiceCode) corpoNF.municipalServiceCode = municipalServiceCode
+        else corpoNF.municipalServiceName = 'Locação de bens móveis'
+
+        const rNF = $http.send({
+          url: base + '/invoices',
+          method: 'POST',
+          headers,
+          body: JSON.stringify(corpoNF),
+        })
+        if (rNF.statusCode === 200) {
+          rec.set('asaas_invoice_id', rNF.json.id || '')
+          rec.set('asaas_invoice_status', rNF.json.status || '')
+          rec.set('asaas_invoice_url', rNF.json.pdfUrl || rNF.json.externalPdfUrl || '')
+          $app.save(rec)
+          console.log('[asaas] NFS-e agendada', rNF.json.id, 'para fechamento', rec.id)
+        } else {
+          console.warn(
+            '[asaas] criar invoice falhou',
+            rNF.statusCode,
+            JSON.stringify(rNF.json).slice(0, 300),
+          )
+        }
+      }
+    } catch (err) {
+      console.warn('[asaas] erro invoice', err)
     }
   } catch (err) {
     console.warn('[asaas] erro geral no hook', err)

@@ -238,6 +238,10 @@ export default function Fechamentos() {
                       {fechado ? (
                         <>
                           <Badge className="bg-teal-600">Fechado</Badge>
+                          {(fechado as { asaas_invoice_status?: string }).asaas_invoice_status ===
+                            'AUTHORIZED' && <Badge className="bg-indigo-600">NF autorizada</Badge>}
+                          {(fechado as { asaas_invoice_status?: string }).asaas_invoice_status ===
+                            'ERROR' && <Badge className="bg-red-600">NF com erro</Badge>}
                           <Button
                             size="sm"
                             variant="outline"
@@ -287,6 +291,21 @@ export default function Fechamentos() {
                               }
                             >
                               Boleto
+                            </Button>
+                          )}
+                          {(fechado as { asaas_invoice_url?: string }).asaas_invoice_url && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-indigo-600 text-indigo-700 hover:bg-indigo-50"
+                              onClick={() =>
+                                window.open(
+                                  (fechado as { asaas_invoice_url?: string }).asaas_invoice_url,
+                                  '_blank',
+                                )
+                              }
+                            >
+                              NF
                             </Button>
                           )}
                           <Button

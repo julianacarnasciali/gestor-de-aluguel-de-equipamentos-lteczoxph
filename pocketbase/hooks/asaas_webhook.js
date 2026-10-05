@@ -36,5 +36,29 @@ routerAdd('POST', '/backend/v1/webhooks/asaas', (e) => {
       console.warn('[asaas-webhook] fechamento nao encontrado p/ payment', paymentId)
     }
   }
+
+  // NFS-e: INVOICE_AUTHORIZED confirma emissão; INVOICE_ERROR registra falha
+  if (evento === 'INVOICE_AUTHORIZED' || evento === 'INVOICE_ERROR') {
+    const nf = (body && body.invoice) || {}
+    const invoiceId = nf.id || ''
+    if (invoiceId) {
+      try {
+        const f = $app.findFirstRecordByFilter(
+          'fechamentos',
+          "asaas_invoice_id = '" + invoiceId + "'",
+        )
+        if (f) {
+          f.set('asaas_invoice_status', evento === 'INVOICE_AUTHORIZED' ? 'AUTHORIZED' : 'ERROR')
+          const url = nf.externalPdfUrl || nf.pdfUrl || ''
+          if (url) f.set('asaas_invoice_url', url)
+          $app.save(f)
+          console.log('[asaas-webhook] NFS-e', evento, 'fechamento:', f.id)
+        }
+      } catch (_) {
+        console.warn('[asaas-webhook] fechamento nao encontrado p/ invoice', invoiceId)
+      }
+    }
+  }
+
   return e.json(200, { ok: true })
 })
