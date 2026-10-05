@@ -183,26 +183,14 @@ onRecordAfterCreateSuccess((e) => {
           ir: 0,
           inss: 0,
         }
-        // serviço municipal: o Asaas EXIGE municipalServiceId + municipalServiceName
-        // (só o nome dá 500 unknow.error; só o id dá invalid_municipalServiceExternalId)
-        let municipalServiceId = $secrets.get('ASAAS_MUNICIPAL_SERVICE_ID')
-        if (!municipalServiceId) {
-          try {
-            const rS = $http.send({ url: base + '/fiscalInfo/services', method: 'GET', headers })
-            if (rS.statusCode === 200 && Array.isArray(rS.json.data) && rS.json.data.length > 0) {
-              const alvo = rS.json.data.find((s) =>
-                String(s.description || '')
-                  .toLowerCase()
-                  .includes('loca'),
-              )
-              municipalServiceId = (alvo || rS.json.data[0]).id
-            }
-          } catch (errS) {
-            console.warn('[asaas] listar fiscalInfo/services falhou', errS)
-          }
-        }
-        if (municipalServiceId) corpoNF.municipalServiceId = municipalServiceId
-        corpoNF.municipalServiceName = 'Locação de bens móveis'
+        // serviço municipal (contabilidade 06/10): 14.02.01 assistência técnica —
+        // suporte de TI e impressoras/multifuncionais do contrato mensal. NBS 1.2001.20.00,
+        // CNAE 9511800 (já configurados nas informações fiscais da conta).
+        corpoNF.municipalServiceCode = '14.02.01'
+        corpoNF.municipalServiceName = 'Assistência técnica'
+        corpoNF.serviceDescription =
+          'Prestação de serviços de suporte de TI e impressoras e multifuncionais referentes ao contrato mensal — competência ' +
+          rec.getString('competencia')
 
         const rNF = $http.send({
           url: base + '/invoices',
