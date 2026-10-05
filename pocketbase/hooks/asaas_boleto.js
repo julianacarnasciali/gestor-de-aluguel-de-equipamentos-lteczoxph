@@ -27,8 +27,12 @@ onRecordAfterCreateSuccess((e) => {
 
     const doc = empresa ? String(empresa.getString('cnpj_cpf') || '').replace(/\D/g, '') : ''
     const nome = empresa ? empresa.getString('nome') : 'Cliente LCCA'
-    const email = empresa ? String(empresa.getString('responsavel_email') || '') : ''
+    const email =
+      String(
+        (empresa && (empresa.getString('email') || empresa.getString('responsavel_email'))) || '',
+      ) || ''
     const fone = empresa ? String(empresa.getString('telefone') || '').replace(/\D/g, '') : ''
+    const enderecoTxt = empresa ? String(empresa.getString('endereco') || '') : ''
     const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
     let customerId = String((empresa && empresa.getString('asaas_customer_id')) || '')
 
@@ -43,6 +47,20 @@ onRecordAfterCreateSuccess((e) => {
         if (doc) corpo.cpfCnpj = doc
         if (email) corpo.email = email
         if (fone) corpo.mobilePhone = fone
+        if (enderecoTxt) {
+          // formato: "Rua X, 100, Cidade - UF, CEP" (o Asaas exige endereço completo p/ NFS-e)
+          const partes = enderecoTxt.split(',').map((s) => s.trim())
+          if (partes.length >= 4) {
+            corpo.address = partes[0]
+            corpo.addressNumber = partes[1]
+            const cidadeUf = partes[2].split('-').map((s) => s.trim())
+            corpo.cityName = cidadeUf[0] || ''
+            corpo.state = cidadeUf[1] || ''
+            corpo.postalCode = partes[3].replace(/\D/g, '')
+            corpo.addressComplement = ''
+            corpo.province = ''
+          }
+        }
         const r2 = $http.send({
           url: base + '/customers',
           method: 'POST',
