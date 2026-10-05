@@ -273,7 +273,30 @@ export default function Fechamentos() {
                             }}
                           >
                             Ver PDF
-                          </Button>{' '}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={async () => {
+                              const f = fechado as { id?: string }
+                              if (!f?.id) return
+                              if (
+                                !confirm(
+                                  'Apagar este fechamento de teste? Ele sai da lista e o contrato volta para Pendentes.',
+                                )
+                              )
+                                return
+                              await pb.collection('fechamentos').delete(f.id)
+                              setFechamentos((prev) => {
+                                const novo = { ...prev }
+                                delete novo[c.id]
+                                return novo
+                              })
+                            }}
+                          >
+                            Excluir
+                          </Button>
                         </>
                       ) : (
                         <Button
