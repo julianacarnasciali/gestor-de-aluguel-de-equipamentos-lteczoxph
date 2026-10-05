@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { gerarPdfFechamento } from '@/lib/pdf-fechamento'
 
 const competenciaAtual = () => {
   const d = new Date()
@@ -240,13 +241,35 @@ export default function Fechamentos() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
+                            onClick={async () => {
                               const f = fechado as { id?: string }
-                              if (f?.id)
-                                window.open(
-                                  `${pb.baseUrl}/backend/v1/fechamentos/${f.id}/pdf`,
-                                  '_blank',
-                                )
+                              if (!f?.id) return
+                              const [cfgList, eqs, leis] = await Promise.all([
+                                pb.collection('config').getFullList(),
+                                getEquipamentos(),
+                                getLeituras(competencia),
+                              ])
+                              const cfg = cfgList[0]
+                              const doContrato = eqs.filter(
+                                (q) => q.contrato === c.id && q.tipo === 'impressora',
+                              )
+                              const maquinas = doContrato.map((q) => {
+                                const l = leis.find((x) => x.equipamento === q.id)
+                                return {
+                                  patrimonio: q.patrimonio || q.descricao || q.id,
+                                  setor: q.setor || '',
+                                  leitura_anterior: l?.leitura_anterior ?? 0,
+                                  leitura_atual: l?.leitura_atual ?? 0,
+                                  paginas_mes: l?.paginas_mes ?? 0,
+                                }
+                              })
+                              gerarPdfFechamento(
+                                f as never,
+                                c.expand?.empresa,
+                                c,
+                                cfg as never,
+                                maquinas,
+                              )
                             }}
                           >
                             Ver PDF
