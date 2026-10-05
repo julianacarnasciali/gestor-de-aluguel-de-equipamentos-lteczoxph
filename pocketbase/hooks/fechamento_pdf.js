@@ -8,7 +8,7 @@ routerAdd(
   (e) => {
     const { PDFDocument, StandardFonts, rgb } = require('pdf-lib')
 
-    const id = e.requestInfo().pathParams.id
+    const id = e.request.pathValue('id')
     let fech = null
     try {
       fech = $app.findRecordById('fechamentos', id)
