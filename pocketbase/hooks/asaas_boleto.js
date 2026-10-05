@@ -120,6 +120,16 @@ onRecordAfterCreateSuccess((e) => {
           externalReference: rec.id,
         }
         if (paymentId) corpoNF.payment = paymentId
+        // impostos: locação de bens móveis não sofre ISS (SV 31); Simples recolhe via DAS
+        corpoNF.taxes = {
+          retainIss: false,
+          iss: 0,
+          pis: 0,
+          cofins: 0,
+          csll: 0,
+          ir: 0,
+          inss: 0,
+        }
         let municipalServiceId = $secrets.get('ASAAS_MUNICIPAL_SERVICE_ID')
         if (!municipalServiceId) {
           // descobre o serviço municipal cadastrado nas informações fiscais da conta
