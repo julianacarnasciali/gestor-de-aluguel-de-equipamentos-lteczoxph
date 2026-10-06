@@ -91,7 +91,7 @@ onRecordAfterUpdateSuccess((e) => {
       '</div>' +
       '<div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;background:#f8fafc;padding:12px 16px">' +
       '<div style="font-size:13px;font-weight:bold;color:#0F2A43">Luiz Carlos Carnasciali</div>' +
-      '<div style="font-size:12px;color:#64748b">Sócio &amp; Técnico Responsável</div>' +
+      '<div style="font-size:12px;color:#64748b">Proprietário &amp; Técnico Responsável</div>' +
       '<div style="font-size:12px;color:#0D9488;margin-top:4px"><strong>📱 (41) 98406-4557</strong> · WhatsApp</div>' +
       '</div>' +
       '</div>'
