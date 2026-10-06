@@ -14,6 +14,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { getLeiturasAll, updateEquipamento } from '@/services/gestor'
 import { useAuth } from '@/hooks/use-auth'
+import { DialogEquipamento, type DialogEquipState } from '@/components/DialogEquipamento'
+import { Plus, Pencil } from 'lucide-react'
 
 const competenciaAtual = () => {
   const d = new Date()
@@ -40,6 +42,7 @@ export default function Leituras() {
   const [busca, setBusca] = useState('')
   const [historico, setHistorico] = useState<Record<string, number[]>>({})
   const [confirmados, setConfirmados] = useState<Record<string, boolean>>({})
+  const [dialogEq, setDialogEq] = useState<DialogEquipState | null>(null)
 
   const analisar = (eqId: string, ant: number, at: number, hist: number[]): string | null => {
     if (!at || at < 0) return null
@@ -239,12 +242,28 @@ export default function Leituras() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <CardTitle className="text-lg">{g.empresa}</CardTitle>
-                    <Badge
-                      variant={lancadas === g.maquinas.length ? 'default' : 'secondary'}
-                      className={lancadas === g.maquinas.length ? 'bg-teal-600' : ''}
-                    >
-                      {lancadas}/{g.maquinas.length} lançadas
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={lancadas === g.maquinas.length ? 'default' : 'secondary'}
+                        className={lancadas === g.maquinas.length ? 'bg-teal-600' : ''}
+                      >
+                        {lancadas}/{g.maquinas.length} lançadas
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 border-teal-600 text-teal-700 hover:bg-teal-50"
+                        onClick={() =>
+                          setDialogEq({
+                            empresaId: g.maquinas[0]?.empresa ?? '',
+                            empresaNome: g.empresa,
+                            eq: null,
+                          })
+                        }
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Impressora
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -257,6 +276,19 @@ export default function Leituras() {
                           <div className="min-w-48 flex-1">
                             <p className="font-medium text-sm">
                               {eq.patrimonio || eq.descricao || eq.id}
+                              <button
+                                className="ml-2 text-slate-400 hover:text-teal-700"
+                                title="Editar equipamento (série, setor, contrato...)"
+                                onClick={() =>
+                                  setDialogEq({
+                                    empresaId: eq.empresa,
+                                    empresaNome: g.empresa,
+                                    eq,
+                                  })
+                                }
+                              >
+                                <Pencil className="inline h-3 w-3" />
+                              </button>
                               {est.manual && (
                                 <Badge
                                   variant="outline"
@@ -268,7 +300,10 @@ export default function Leituras() {
                               {est.media && <Badge className="ml-2 bg-teal-600">pela média</Badge>}
                             </p>
                             {eq.setor && (
-                              <p className="text-xs text-muted-foreground">{eq.setor}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {eq.setor}
+                                {eq.numero_serie ? ` · série ${eq.numero_serie}` : ''}
+                              </p>
                             )}
                             {est.alerta && (
                               <div
@@ -367,6 +402,12 @@ export default function Leituras() {
           })}
         </div>
       )}
+
+      <DialogEquipamento
+        estado={dialogEq}
+        onFechar={() => setDialogEq(null)}
+        onSalvo={() => carregar(competencia)}
+      />
     </div>
   )
 }

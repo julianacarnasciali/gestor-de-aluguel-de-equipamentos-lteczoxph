@@ -146,6 +146,9 @@ export const getLeiturasAll = () =>
 
 export const updateEquipamento = (id: string, data: Partial<Equipamento>) =>
   pb.collection('equipamentos').update<Equipamento>(id, data)
+export const createEquipamento = (data: Record<string, unknown>) =>
+  pb.collection('equipamentos').create<Equipamento>(data)
+export const deleteEquipamento = (id: string) => pb.collection('equipamentos').delete(id)
 
 export interface Fechamento {
   id: string
