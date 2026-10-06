@@ -187,6 +187,12 @@ export const getFechamentos = (competencia: string) =>
     expand: 'empresa,contrato',
   })
 
+export const getFechamentosAll = () =>
+  pb.collection('fechamentos').getFullList<Fechamento>({
+    sort: '-competencia',
+    expand: 'empresa',
+  })
+
 export const getFechamentosContrato = (contratoId: string) =>
   pb.collection('fechamentos').getFullList<Fechamento>({
     filter: `contrato = "${contratoId}"`,

@@ -8,6 +8,7 @@ const links = [
   { to: '/empresas', label: 'Empresas' },
   { to: '/leituras', label: 'Leituras' },
   { to: '/fechamentos', label: 'Fechamento' },
+  { to: '/financeiro', label: 'Financeiro' },
   { to: '/agente', label: 'Assistente IA' },
 ]
 

@@ -11,6 +11,7 @@ import Conta from './pages/Conta'
 import Fechamentos from './pages/Fechamentos'
 import DashboardRelatorio from './pages/DashboardRelatorio'
 import Agente from './pages/Agente'
+import Financeiro from './pages/Financeiro'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -82,6 +83,14 @@ const App = () => (
               element={
                 <RequireAuth>
                   <Agente />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/financeiro"
+              element={
+                <RequireAuth>
+                  <Financeiro />
                 </RequireAuth>
               }
             />
