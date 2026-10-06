@@ -52,9 +52,12 @@ onRecordAfterUpdateSuccess((e) => {
       return
     }
 
+    // JSVM (goja) não suporta toLocaleString com opções — formata na mão
     const valor = Number(rec.getFloat('valor') || 0)
-    const brl =
-      'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const inteiro = Math.floor(valor)
+    const centavos = Math.round((valor - inteiro) * 100)
+    const milhar = String(inteiro).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    const brl = 'R$ ' + milhar + ',' + String(centavos).padStart(2, '0')
     const venc = String(rec.getString('data_vencimento') || '')
       .slice(0, 10)
       .split('-')
