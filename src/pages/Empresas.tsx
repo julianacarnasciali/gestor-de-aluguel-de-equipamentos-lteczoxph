@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import {
   getEmpresas,
   getContratos,
+  getEquipamentos,
   updateEmpresa,
   type Empresa,
   type Contato,
+  type Equipamento,
 } from '@/services/gestor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -13,6 +15,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DialogEquipamentosEmpresa } from '@/components/DialogEquipamentosEmpresa'
+import { Package } from 'lucide-react'
 
 const MESES: Record<string, string> = {
   '01': 'Janeiro',
@@ -38,11 +42,14 @@ export default function Empresas() {
   const [editando, setEditando] = useState<Empresa | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [erroForm, setErroForm] = useState('')
+  const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
+  const [dialogEqEmpresa, setDialogEqEmpresa] = useState<Empresa | null>(null)
 
   useEffect(() => {
-    Promise.all([getEmpresas(), getContratos()])
-      .then(([emps, ctrs]) => {
+    Promise.all([getEmpresas(), getContratos(), getEquipamentos()])
+      .then(([emps, ctrs, eqs]) => {
         setEmpresas(emps)
+        setEquipamentos(eqs)
         const mapa: Record<string, string> = {}
         for (const c of ctrs) {
           if (!c.ativo) continue
@@ -107,6 +114,7 @@ export default function Empresas() {
         tipo_cliente: editando.tipo_cliente || 'contrato',
         contatos,
         indicado_por: editando.indicado_por || '',
+        indicado_por_texto: editando.indicado_por_texto || '',
         ativo: editando.ativo,
         emite_nf: editando.emite_nf,
         observacoes: editando.observacoes ?? '',
@@ -161,9 +169,12 @@ export default function Empresas() {
                   {e.responsavel_email && (
                     <p className="text-muted-foreground">✉ {e.responsavel_email}</p>
                   )}
-                  {e.indicado_por && (
+                  {(e.indicado_por || e.indicado_por_texto) && (
                     <p className="text-xs text-muted-foreground">
-                      ↳ indicado por {e.expand?.indicado_por?.nome ?? '—'}
+                      ↳ indicado por{' '}
+                      {e.indicado_por
+                        ? (e.expand?.indicado_por?.nome ?? '—')
+                        : e.indicado_por_texto}
                     </p>
                   )}
                   {indicados.length > 0 && (
@@ -175,6 +186,42 @@ export default function Empresas() {
                   >
                     <span className="text-sm font-medium">Emite nota fiscal</span>
                     <Switch checked={e.emite_nf} onCheckedChange={(v) => alternarNota(e, v)} />
+                  </div>
+                  <div
+                    className="flex items-center justify-between pt-1"
+                    onClick={(ev) => ev.stopPropagation()}
+                  >
+                    <span />
+                    <div className="relative group">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 border-teal-600 text-teal-700 hover:bg-teal-50"
+                        onClick={() => setDialogEqEmpresa(e)}
+                      >
+                        <Package className="h-3 w-3 mr-1" /> Equipamentos
+                      </Button>
+                      {(() => {
+                        const eqs = equipamentos.filter((q) => q.empresa === e.id)
+                        if (eqs.length === 0) return null
+                        return (
+                          <div className="absolute right-0 bottom-full mb-2 w-64 rounded-md border bg-white shadow-lg p-3 text-xs opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-20">
+                            <p className="font-medium mb-1 text-slate-700">
+                              {eqs.length} equipamento(s)
+                            </p>
+                            {eqs.slice(0, 6).map((q) => (
+                              <p key={q.id} className="text-slate-600 truncate">
+                                • {q.patrimonio || q.descricao || q.id}
+                                {q.numero_serie ? ` — série ${q.numero_serie}` : ''}
+                              </p>
+                            ))}
+                            {eqs.length > 6 && (
+                              <p className="text-slate-400 italic">+ {eqs.length - 6} outros...</p>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -301,7 +348,7 @@ export default function Empresas() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Indicado por</Label>
+                  <Label>Indicado por (cliente)</Label>
                   <select
                     className="w-full rounded-md border bg-transparent p-2 text-sm"
                     value={editando.indicado_por || ''}
@@ -318,14 +365,24 @@ export default function Empresas() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Já indicou</Label>
-                  <p className="rounded-md border p-2 text-sm bg-slate-50">
-                    {empresas
-                      .filter((o) => o.indicado_por === editando.id)
-                      .map((o) => o.nome)
-                      .join(', ') || '—'}
-                  </p>
+                  <Label>Indicado por (outra pessoa)</Label>
+                  <Input
+                    value={editando.indicado_por_texto || ''}
+                    onChange={(e) =>
+                      setEditando({ ...editando, indicado_por_texto: e.target.value })
+                    }
+                    placeholder="Nome de quem indicou"
+                  />
                 </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Já indicou</Label>
+                <p className="rounded-md border p-2 text-sm bg-slate-50">
+                  {empresas
+                    .filter((o) => o.indicado_por === editando.id)
+                    .map((o) => o.nome)
+                    .join(', ') || '—'}
+                </p>
               </div>
 
               <div className="space-y-1">
@@ -368,6 +425,13 @@ export default function Empresas() {
           )}
         </DialogContent>
       </Dialog>
+
+      <DialogEquipamentosEmpresa
+        empresaId={dialogEqEmpresa?.id ?? ''}
+        empresaNome={dialogEqEmpresa?.nome ?? ''}
+        aberto={!!dialogEqEmpresa}
+        onFechar={() => setDialogEqEmpresa(null)}
+      />
     </div>
   )
 }

@@ -23,6 +23,7 @@ export interface Empresa {
   tipo_cliente: 'contrato' | 'avulso' | ''
   contatos: Contato[]
   indicado_por: string
+  indicado_por_texto: string
   expand?: { indicado_por?: Empresa }
 }
 
@@ -149,6 +150,16 @@ export const updateEquipamento = (id: string, data: Partial<Equipamento>) =>
 export const createEquipamento = (data: Record<string, unknown>) =>
   pb.collection('equipamentos').create<Equipamento>(data)
 export const deleteEquipamento = (id: string) => pb.collection('equipamentos').delete(id)
+export const getEquipamentosEmpresa = (empresaId: string) =>
+  pb.collection('equipamentos').getFullList<Equipamento>({
+    filter: `empresa = "${empresaId}"`,
+    sort: 'patrimonio',
+  })
+export const getEquipamentosAllTipos = (empresaId: string) =>
+  pb.collection('equipamentos').getFullList<Equipamento>({
+    filter: `empresa = "${empresaId}" && ativo = true`,
+    sort: 'tipo,patrimonio',
+  })
 
 export interface Fechamento {
   id: string
