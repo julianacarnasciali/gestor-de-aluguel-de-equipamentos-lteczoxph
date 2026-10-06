@@ -9,6 +9,7 @@ const links = [
   { to: '/leituras', label: 'Leituras' },
   { to: '/fechamentos', label: 'Fechamento' },
   { to: '/financeiro', label: 'Financeiro' },
+  { to: '/servico-avulso', label: 'Serviço avulso' },
   { to: '/agente', label: 'Assistente IA' },
 ]
 

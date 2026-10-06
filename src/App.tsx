@@ -12,6 +12,7 @@ import Fechamentos from './pages/Fechamentos'
 import DashboardRelatorio from './pages/DashboardRelatorio'
 import Agente from './pages/Agente'
 import Financeiro from './pages/Financeiro'
+import ServicoAvulso from './pages/ServicoAvulso'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -91,6 +92,14 @@ const App = () => (
               element={
                 <RequireAuth>
                   <Financeiro />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/servico-avulso"
+              element={
+                <RequireAuth>
+                  <ServicoAvulso />
                 </RequireAuth>
               }
             />

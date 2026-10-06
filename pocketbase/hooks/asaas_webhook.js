@@ -35,6 +35,17 @@ routerAdd('POST', '/backend/v1/webhooks/asaas', (e) => {
     } catch (_) {
       console.warn('[asaas-webhook] fechamento nao encontrado p/ payment', paymentId)
     }
+    try {
+      const s = $app.findFirstRecordByFilter('servicos', "asaas_payment_id = '" + paymentId + "'")
+      if (s && s.getString('status') !== 'pago') {
+        s.set('status', 'pago')
+        s.set('data_pagamento', new Date().toISOString().slice(0, 10))
+        $app.save(s)
+        console.log('[asaas-webhook] servico avulso pago:', s.id)
+      }
+    } catch (_) {
+      console.warn('[asaas-webhook] servico nao encontrado p/ payment', paymentId)
+    }
   }
 
   // NFS-e: INVOICE_AUTHORIZED confirma emissão; INVOICE_ERROR registra falha
@@ -56,6 +67,18 @@ routerAdd('POST', '/backend/v1/webhooks/asaas', (e) => {
         }
       } catch (_) {
         console.warn('[asaas-webhook] fechamento nao encontrado p/ invoice', invoiceId)
+      }
+      try {
+        const s = $app.findFirstRecordByFilter('servicos', "asaas_invoice_id = '" + invoiceId + "'")
+        if (s) {
+          s.set('asaas_invoice_status', evento === 'INVOICE_AUTHORIZED' ? 'AUTHORIZED' : 'ERROR')
+          const url = nf.externalPdfUrl || nf.pdfUrl || ''
+          if (url) s.set('asaas_invoice_url', url)
+          $app.save(s)
+          console.log('[asaas-webhook] NFS-e', evento, 'servico:', s.id)
+        }
+      } catch (_) {
+        console.warn('[asaas-webhook] servico nao encontrado p/ invoice', invoiceId)
       }
     }
   }

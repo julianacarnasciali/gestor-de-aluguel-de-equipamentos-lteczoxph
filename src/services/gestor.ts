@@ -93,6 +93,8 @@ export const getEmpresas = () =>
   pb.collection('empresas').getFullList<Empresa>({ sort: 'nome', expand: 'indicado_por' })
 export const updateEmpresa = (id: string, data: Partial<Empresa>) =>
   pb.collection('empresas').update<Empresa>(id, data)
+export const createEmpresa = (data: Partial<Empresa>) =>
+  pb.collection('empresas').create<Empresa>(data)
 
 // ---------- Contratos ----------
 export const getContratos = () =>
@@ -197,6 +199,11 @@ export const getFechamentos = (competencia: string) =>
     filter: `competencia = "${competencia}"`,
     expand: 'empresa,contrato',
   })
+
+export const createServico = (data: Record<string, unknown>) =>
+  pb.collection('servicos').create(data)
+export const getServicos = () =>
+  pb.collection('servicos').getFullList({ sort: '-created', expand: 'empresa' })
 
 export const getFechamentosAll = () =>
   pb.collection('fechamentos').getFullList<Fechamento>({
