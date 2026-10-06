@@ -12,11 +12,14 @@ migrate(
     // marca como recorrentes os contratos ativos sem impressora ativa
     const contratos = app.findRecordsByFilter('contratos', 'ativo = true', '', 0, 0)
     for (const k of contratos) {
-      const temImpressora = app.countRecordsByFilter(
+      const impressoras = app.findRecordsByFilter(
         'equipamentos',
         "contrato = '" + k.id + "' && tipo = 'impressora' && ativo = true",
+        '',
+        1,
+        0,
       )
-      if (temImpressora === 0) {
+      if (impressoras.length === 0) {
         k.set('recorrente', true)
         app.save(k)
       }
