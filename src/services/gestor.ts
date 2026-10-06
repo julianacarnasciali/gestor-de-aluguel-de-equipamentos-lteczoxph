@@ -20,7 +20,7 @@ export interface Empresa {
   emite_nf: boolean
   ativo: boolean
   observacoes: string
-  tipo_cliente: 'contrato' | 'avulso' | ''
+  tipo_cliente: 'impressora' | 'misto' | 'computador' | 'avulso' | ''
   contatos: Contato[]
   indicado_por: string
   indicado_por_texto: string

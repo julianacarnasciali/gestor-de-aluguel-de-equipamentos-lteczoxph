@@ -111,7 +111,7 @@ export default function Empresas() {
         unidade: editando.unidade,
         responsavel_nome: contatos[0].nome,
         responsavel_email: contatos[0].email,
-        tipo_cliente: editando.tipo_cliente || 'contrato',
+        tipo_cliente: editando.tipo_cliente || 'misto',
         contatos,
         indicado_por: editando.indicado_por || '',
         indicado_por_texto: editando.indicado_por_texto || '',
@@ -157,7 +157,13 @@ export default function Empresas() {
                     <CardTitle className="text-base leading-snug">{e.nome}</CardTitle>
                     <div className="flex flex-col items-end gap-1">
                       <Badge className="bg-teal-600">
-                        {e.tipo_cliente === 'avulso' ? 'Avulso' : 'Contrato'}
+                        {e.tipo_cliente === 'avulso'
+                          ? 'Avulso'
+                          : e.tipo_cliente === 'computador'
+                            ? 'Só computador'
+                            : e.tipo_cliente === 'impressora'
+                              ? 'Só impressora'
+                              : 'Misto'}
                       </Badge>
                       {!e.ativo && <Badge variant="secondary">Histórica</Badge>}
                     </div>
@@ -297,7 +303,7 @@ export default function Empresas() {
                   <Label>Tipo de cliente</Label>
                   <select
                     className="w-full rounded-md border bg-transparent p-2 text-sm"
-                    value={editando.tipo_cliente || 'contrato'}
+                    value={editando.tipo_cliente || 'misto'}
                     onChange={(e) =>
                       setEditando({
                         ...editando,
@@ -305,10 +311,16 @@ export default function Empresas() {
                       })
                     }
                   >
-                    <option value="contrato">
-                      Contrato (recorrente — locação/serviço/equipamento)
+                    <option value="impressora">
+                      Só impressora (relatório por leitura — fechamento padrão)
                     </option>
-                    <option value="avulso">Avulso (serviço único — backup, atualização...)</option>
+                    <option value="misto">
+                      Misto — impressora + computador (relatório cita computador e valor)
+                    </option>
+                    <option value="computador">
+                      Só computador/servidor (mensalidade fixa, sem leitura)
+                    </option>
+                    <option value="avulso">Avulso (serviço único — formatação, backup...)</option>
                   </select>
                 </div>
                 <div className="space-y-1">

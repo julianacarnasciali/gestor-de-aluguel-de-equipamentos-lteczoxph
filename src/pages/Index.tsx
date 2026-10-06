@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getContratos, getLeituras, brl, type Contrato } from '@/services/gestor'
-import { Eye, EyeOff } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,7 +17,6 @@ export default function Index() {
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [leiturasMes, setLeiturasMes] = useState(0)
   const [carregando, setCarregando] = useState(true)
-  const [oculto, setOculto] = useState(false)
 
   useEffect(() => {
     Promise.all([getContratos(), getLeituras(competenciaAtual())])
@@ -77,18 +75,7 @@ export default function Index() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2">
-                  <p className={`text-3xl font-bold ${oculto ? 'blur-sm select-none' : ''}`}>
-                    {brl(receitaMensal)}
-                  </p>
-                  <button
-                    className="text-slate-400 hover:text-slate-600"
-                    title={oculto ? 'Mostrar valores' : 'Ocultar valores'}
-                    onClick={() => setOculto((o) => !o)}
-                  >
-                    {oculto ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
+                <p className="text-3xl font-bold">{brl(receitaMensal)}</p>{' '}
               </CardContent>
             </Card>
             <Card>
@@ -98,9 +85,7 @@ export default function Index() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className={`text-3xl font-bold ${oculto ? 'blur-sm select-none' : ''}`}>
-                  {leiturasMes}
-                </p>
+                <p className="text-3xl font-bold">{leiturasMes}</p>
               </CardContent>
             </Card>
           </div>
@@ -123,7 +108,7 @@ export default function Index() {
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className={`font-semibold ${oculto ? 'blur-sm select-none' : ''}`}>
+                        <span className="font-semibold">
                           {brl(
                             (c.mensalidade ?? 0) +
                               (c.vlr_dispositivos ?? 0) +
