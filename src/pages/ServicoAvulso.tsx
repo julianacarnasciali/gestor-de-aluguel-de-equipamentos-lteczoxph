@@ -49,6 +49,11 @@ export default function ServicoAvulso() {
     }
     setSalvando(true)
     try {
+      const v = valorNum()
+      if (Number.isNaN(v) || v <= 0) {
+        setErro(`Valor inválido: "${valor}". Use números, ex.: 450 ou 450,00.`)
+        return
+      }
       const nova = await createEmpresa({
         nome,
         cnpj_cpf: cnpjCpf,
@@ -61,11 +66,23 @@ export default function ServicoAvulso() {
       setSelecionada(nova)
       setNovoCliente(false)
       await criarServico(nova.id)
-    } catch {
-      setErro('Não foi possível cadastrar o cliente. Confira os dados e tente de novo.')
+    } catch (err) {
+      const detalhe =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message || ''
+      setErro(
+        'Não foi possível cadastrar o cliente/criar o serviço.' +
+          (detalhe ? ` Detalhe: ${detalhe}` : ' Confira os dados e tente de novo.'),
+      )
     } finally {
       setSalvando(false)
     }
+  }
+
+  // aceita "450", "450,00" e "450.00" (formato brasileiro)
+  const valorNum = () => {
+    const limpo = valor.trim().replace(/\./g, '').replace(',', '.')
+    const n = Number(limpo)
+    return Number.isFinite(n) ? n : NaN
   }
 
   const criarServico = async (empresaId: string) => {
@@ -74,20 +91,30 @@ export default function ServicoAvulso() {
       setErro('Preencha: descrição do serviço, valor e vencimento.')
       return
     }
+    const v = valorNum()
+    if (Number.isNaN(v) || v <= 0) {
+      setErro(`Valor inválido: "${valor}". Use números, ex.: 450 ou 450,00.`)
+      return
+    }
     setSalvando(true)
     try {
       const s = await createServico({
         empresa: empresaId,
         descricao,
-        valor: Number(valor),
+        valor: v,
         data_servico: dataServico,
         data_vencimento: dataVenc,
         emite_nf: selecionada ? selecionada.emite_nf : emiteNf,
         status: 'emitido',
       })
       setCriado(s as unknown as Record<string, unknown>)
-    } catch {
-      setErro('Não foi possível criar o serviço. Tente novamente.')
+    } catch (err) {
+      const detalhe =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message || ''
+      setErro(
+        'Não foi possível criar o serviço.' +
+          (detalhe ? ` Detalhe: ${detalhe}` : ' Tente novamente.'),
+      )
     } finally {
       setSalvando(false)
     }
