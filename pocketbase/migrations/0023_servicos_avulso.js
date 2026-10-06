@@ -3,6 +3,14 @@
 migrate(
   (app) => {
     const empresasId = app.findCollectionByNameOrId('empresas').id
+    // a coleção "servicos" do template original tem contrato/tipo obrigatórios —
+    // reconstrói do zero preservando registros (esperado: 0)
+    try {
+      const antiga = app.findCollectionByNameOrId('servicos')
+      if (antiga && antiga.fields.getByName('contrato')) {
+        app.delete(antiga)
+      }
+    } catch (_) {}
     if (app.findCollectionByNameOrId('servicos')) return
     const col = new Collection({
       name: 'servicos',
