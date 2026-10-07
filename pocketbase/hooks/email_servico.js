@@ -86,7 +86,7 @@ onRecordAfterUpdateSuccess((e) => {
       // assinatura — cabeçalho navy do relatório (letras brancas) + contato do Luiz
       '<div style="margin-top:20px;font-family:Arial,Helvetica,sans-serif">' +
       '<div style="background:#0F2A43;color:#ffffff;padding:10px 16px;border-radius:8px 8px 0 0">' +
-      '<span style="font-size:15px;font-weight:bold;letter-spacing:2px">LCCA TECNOLOGIA</span>' +
+      '<span style="font-size:15px;font-weight:bold;letter-spacing:2px">LCCA TECH</span>' +
       '<span style="font-size:11px;color:#9fb3c8"> &nbsp;·&nbsp; Locação e suporte de TI</span>' +
       '</div>' +
       '<div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;background:#f8fafc;padding:12px 16px">' +
