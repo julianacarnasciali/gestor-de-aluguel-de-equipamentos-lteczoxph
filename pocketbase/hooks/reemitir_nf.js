@@ -1,4 +1,5 @@
 // Rota: reemitir a NFS-e de um fechamento ou serviço que ficou sem nota
+// (v2 — formato compacto, sem comentários longos)
 // (ex.: "Endereço do cliente incompleto / CEP inválido" na 1ª tentativa).
 // Confere permissão (usuário logado), corrige o cliente no Asaas com os dados
 // atuais da empresa e agenda a NF de novo.
