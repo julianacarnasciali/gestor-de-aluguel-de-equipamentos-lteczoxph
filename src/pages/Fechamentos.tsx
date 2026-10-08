@@ -322,11 +322,18 @@ export default function Fechamentos() {
                                 NF na fila da prefeitura…
                               </Badge>
                             )}
-                          <ReemitirNF
-                            colecao="fechamentos"
-                            id={(fechado as { id?: string }).id}
-                            onOk={() => window.location.reload()}
-                          />
+                          {(fechado as { asaas_invoice_url?: string }).asaas_invoice_url ||
+                          !(fechado as { asaas_invoice_id?: string }).asaas_invoice_id ? (
+                            <ReemitirNF
+                              colecao="fechamentos"
+                              id={(fechado as { id?: string }).id}
+                              onOk={() => window.location.reload()}
+                            />
+                          ) : (
+                            <Badge variant="secondary" className="animate-pulse">
+                              Emitindo NF…
+                            </Badge>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"

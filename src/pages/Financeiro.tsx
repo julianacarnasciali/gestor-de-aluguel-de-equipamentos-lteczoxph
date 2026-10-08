@@ -289,14 +289,19 @@ export default function Financeiro() {
                       ) : (
                         <Badge variant="secondary">Em aberto</Badge>
                       )}
-                      {/* NF em fila ou link p/ emitir */}
-                      {String(rec.asaas_invoice_id ?? '') &&
-                        !String(rec.asaas_invoice_url ?? '') && (
-                          <Badge variant="secondary" className="animate-pulse">
-                            NF na fila…
-                          </Badge>
-                        )}
-                      {String(rec.asaas_invoice_id ?? '') && (
+                      {/* NF: link do PDF quando autorizada, fila quando agendada, emitir só se não existe */}
+                      {String(rec.asaas_invoice_url ?? '') ? (
+                        <button
+                          className="text-xs text-indigo-700 underline"
+                          onClick={() => window.open(String(rec.asaas_invoice_url), '_blank')}
+                        >
+                          NF
+                        </button>
+                      ) : String(rec.asaas_invoice_id ?? '') ? (
+                        <Badge variant="secondary" className="animate-pulse">
+                          NF na fila…
+                        </Badge>
+                      ) : (
                         <ReemitirNF colecao="fechamentos" id={l.id} onOk={carregar} />
                       )}
                       {!pago &&
