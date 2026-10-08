@@ -4,15 +4,12 @@
 //   POST /backend/v1/manutencao/nf-reemitir { "invoiceId": "inv_...", "colecao": "fechamentos|servicos" }
 // Autenticação: header x-maestro-token com o valor do secret MAESTRO_TOKEN.
 // Sem token -> 401. Nada aqui expõe dados de clientes.
-
-function maestroOk(e) {
-  const token = $secrets.get('MAESTRO_TOKEN') || ''
-  const got = e.request.header.get('x-maestro-token') || ''
-  return token && got === token
-}
+// NOTA JSVM: toda a lógica INLINE nos callbacks (funções de topo não existem no pool).
 
 routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
-  if (!maestroOk(e)) return e.unauthorizedError('token invalido')
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
 
   let body = null
   try {
@@ -43,7 +40,9 @@ routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
 })
 
 routerAdd('POST', '/backend/v1/manutencao/nf-reemitir', (e) => {
-  if (!maestroOk(e)) return e.unauthorizedError('token invalido')
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
 
   let body = null
   try {
