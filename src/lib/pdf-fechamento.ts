@@ -43,10 +43,10 @@ export function gerarPdfFechamento(
   doc.setFontSize(20)
   doc.text(config.nome_fantasia || 'LCCA Tecnologia', 40, 38)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(190, 205, 215)
+  doc.setFontSize(9.5)
+  doc.setTextColor(228, 238, 244)
   doc.text(`${config.razao_social || ''}  ·  CNPJ ${config.cnpj || ''}`, 40, 55)
-  doc.setFontSize(7.5)
+  doc.setFontSize(9)
   doc.text(
     `${config.endereco || ''}  ·  ${config.cidade_uf || ''}  ·  ${config.telefone || ''}  ·  ${config.email || ''}`,
     40,
@@ -125,15 +125,15 @@ export function gerarPdfFechamento(
   cards.forEach((c, i) => {
     const x = 40 + i * (cardW + 15)
     doc.setFillColor(...c.cor)
-    doc.rect(x, cardY, cardW, 50, 'F')
-    doc.setTextColor(215, 228, 235)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.8)
-    doc.text(c.label, x + 10, cardY + 16)
+    doc.rect(x, cardY, cardW, 56, 'F')
+    doc.setTextColor(235, 244, 248)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.text(c.label, x + 10, cardY + 17)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(13)
-    doc.text(c.valor, x + 10, cardY + 38)
+    doc.setFontSize(14)
+    doc.text(c.valor, x + 10, cardY + 40)
   })
 
   // composição
@@ -179,17 +179,17 @@ export function gerarPdfFechamento(
     }
   }
 
-  // rodapé legal
+  // rodapé legal (fonte maior p/ leitura impressa — pedido 08/10)
   if (config.rodape_legal) {
     const words = config.rodape_legal.split(' ')
     let line = ''
-    let ry = H - 55
-    doc.setFontSize(6.5)
-    doc.setTextColor(...CINZA)
+    let ry = H - 60
+    doc.setFontSize(8)
+    doc.setTextColor(55, 65, 81)
     for (const w of words) {
-      if ((line + w).length > 95) {
+      if ((line + w).length > 78) {
         doc.text(line, 40, ry)
-        ry += 8.5
+        ry += 10.5
         line = ''
       }
       line += w + ' '

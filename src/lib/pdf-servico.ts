@@ -55,7 +55,8 @@ export function gerarPdfServico(
   doc.setFontSize(18)
   doc.text(config?.nome_fantasia || 'LCCA Tecnologia', 14, 15)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(10)
+  doc.setTextColor(228, 238, 244)
   doc.text(`${config?.razao_social ?? ''} · CNPJ ${config?.cnpj ?? ''}`.trim(), 14, 22)
   doc.text(
     `${config?.cidade_uf ?? ''} · ${config?.telefone ?? ''} · ${config?.email ?? ''}`.trim(),
@@ -133,11 +134,11 @@ export function gerarPdfServico(
     y += 5 + pix.length * 3 + 4
   }
 
-  // rodapé legal
-  doc.setFontSize(7)
-  doc.setTextColor(...CINZA)
+  // rodapé legal (fonte maior — pedido 08/10)
+  doc.setFontSize(8.5)
+  doc.setTextColor(55, 65, 81)
   doc.text(
-    'Documento gerado pelo sistema LCCA Tecnologia. Serviço avulso — não substitui a nota fiscal de serviço.',
+    'Documento gerado pelo sistema LCCA Tech. Serviço avulso — não substitui a nota fiscal de serviço.',
     14,
     285,
   )

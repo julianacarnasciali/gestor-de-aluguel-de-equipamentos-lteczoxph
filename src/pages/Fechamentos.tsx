@@ -196,7 +196,14 @@ export default function Fechamentos() {
             ))}
           </div>
           <div className="space-y-3">
-            {contratos
+            {[...contratos]
+              .sort((a, b) =>
+                (a.expand?.empresa?.nome ?? '').localeCompare(
+                  b.expand?.empresa?.nome ?? '',
+                  'pt-BR',
+                  { sensitivity: 'base' },
+                ),
+              )
               .filter((c) => {
                 const fechado = !!fechamentos[c.id]
                 return filtro === 'todos' || (filtro === 'pendentes' ? !fechado : fechado)
