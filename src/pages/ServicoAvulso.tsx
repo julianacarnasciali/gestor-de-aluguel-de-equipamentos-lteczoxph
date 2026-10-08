@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getEmpresas, createEmpresa, createServico, brl, type Empresa } from '@/services/gestor'
 import pb from '@/lib/pocketbase/client'
+import { ReemitirNF } from '@/components/ReemitirNF'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -165,7 +166,20 @@ export default function ServicoAvulso() {
                 >
                   🧾 Nota fiscal (PDF)
                 </a>
+              ) : (criado as { asaas_invoice_id?: string }).asaas_invoice_id ? (
+                <Badge variant="secondary" className="animate-pulse">
+                  NF na fila da prefeitura…
+                </Badge>
               ) : null}
+              {/* serviço criado sem NF: link para emitir depois */}
+              {!(criado as { asaas_invoice_id?: string }).asaas_invoice_id &&
+                !(criado as { asaas_invoice_url?: string }).asaas_invoice_url && (
+                  <ReemitirNF
+                    colecao="servicos"
+                    id={String(criado.id ?? '')}
+                    onOk={() => window.location.reload()}
+                  />
+                )}
               <Button
                 variant="outline"
                 onClick={async () => {
