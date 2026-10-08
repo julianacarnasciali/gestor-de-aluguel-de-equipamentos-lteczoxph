@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { gerarPdfFechamento } from '@/lib/pdf-fechamento'
+import { ReemitirNF } from '@/components/ReemitirNF'
 
 const competenciaAtual = () => {
   const d = new Date()
@@ -315,6 +316,17 @@ export default function Fechamentos() {
                               NF
                             </Button>
                           )}
+                          {(fechado as { asaas_invoice_id?: string }).asaas_invoice_id &&
+                            !(fechado as { asaas_invoice_url?: string }).asaas_invoice_url && (
+                              <Badge variant="secondary" className="animate-pulse">
+                                NF na fila da prefeitura…
+                              </Badge>
+                            )}
+                          <ReemitirNF
+                            colecao="fechamentos"
+                            id={(fechado as { id?: string }).id}
+                            onOk={() => window.location.reload()}
+                          />
                           <Button
                             size="sm"
                             variant="ghost"
