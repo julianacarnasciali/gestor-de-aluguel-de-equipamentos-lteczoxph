@@ -5,12 +5,12 @@ onRecordAfterUpdateSuccess((e) => {
   try {
     const rec = e.record
     const status = rec.getString('status')
-    if (status !== 'emitido' && status !== 'enviado') {
+    // já enviado antes? não reenvia (checa ANTES de aceitar 'enviado')
+    if (rec.getString('status') === 'enviado') {
       e.next()
       return
     }
-    // já enviado antes? não reenvia
-    if (rec.getString('status') === 'enviado') {
+    if (status !== 'emitido') {
       e.next()
       return
     }
