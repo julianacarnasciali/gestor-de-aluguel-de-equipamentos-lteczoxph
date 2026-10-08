@@ -49,17 +49,41 @@ routerAdd('POST', '/backend/v1/reemitir-nf', (e) => {
       const r1 = $http.send({ url: base + '/customers?cpfCnpj=' + doc, method: 'GET', headers })
       if (r1.statusCode === 200 && r1.json.totalCount > 0) customerId = r1.json.data[0].id
     }
-    const partes = enderecoTxt.split(',').map((s) => s.trim())
+    // formato do sistema: "Rua, N, Bairro, Cidade - UF, CEP" (5 partes) —
+    // tolera também 4 partes ("Rua, N, Cidade - UF, CEP")
+    const partes = enderecoTxt
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
     const corpoUpd = { name: empresa.getString('nome') }
     if (email) corpoUpd.email = email
-    if (partes.length >= 4) {
-      corpoUpd.address = partes[0]
-      corpoUpd.addressNumber = partes[1]
-      const cidadeUf = partes[2].split('-').map((s) => s.trim())
-      corpoUpd.cityName = cidadeUf[0] || ''
-      corpoUpd.state = cidadeUf[1] || ''
-      corpoUpd.postalCode = partes[3].replace(/\D/g, '')
+    let rua = '',
+      numero = '',
+      bairro = '',
+      cidUf = '',
+      cep = ''
+    if (partes.length >= 5) {
+      rua = partes[0]
+      numero = partes[1]
+      bairro = partes[2]
+      cidUf = partes[3]
+      cep = partes[4]
+    } else if (partes.length === 4) {
+      rua = partes[0]
+      numero = partes[1]
+      cidUf = partes[2]
+      cep = partes[3]
     }
+    if (rua) corpoUpd.address = rua
+    if (numero) corpoUpd.addressNumber = numero
+    if (bairro) corpoUpd.province = bairro
+    const cidadeUf = cidUf.split('-').map((s) => s.trim())
+    if (cidadeUf[0]) corpoUpd.cityName = cidadeUf[0]
+    if (cidadeUf[1]) corpoUpd.state = cidadeUf[1]
+    const cepLimpo = cep.replace(/\D/g, '')
+    if (cepLimpo.length === 8) corpoUpd.postalCode = cepLimpo
+    // complemento: qualquer coisa após o CEP vira addressComplement
+    if (partes.length > 5) corpoUpd.addressComplement = partes.slice(5).join(', ')
     if (customerId) {
       const ru = $http.send({
         url: base + '/customers/' + customerId,
