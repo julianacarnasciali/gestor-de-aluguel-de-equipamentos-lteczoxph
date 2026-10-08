@@ -1,14 +1,18 @@
 // Rota de manutenção: cancela NFS-e com erro e reagenda a emissão.
 // Uso (via curl, por mim — o token vem do cofre do projeto):
-//   POST /backend/v1/manutencao/nf-reemitir { "invoiceId": "inv_..." }
 //   POST /backend/v1/manutencao/nf-cancelar { "invoiceId": "inv_..." }
+//   POST /backend/v1/manutencao/nf-reemitir { "invoiceId": "inv_...", "colecao": "fechamentos|servicos" }
 // Autenticação: header x-maestro-token com o valor do secret MAESTRO_TOKEN.
 // Sem token -> 401. Nada aqui expõe dados de clientes.
 
-routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
+function maestroOk(e) {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
-  const got = String(e.requestInfo().headers['x-maestro-token'] || '')
-  if (!token || got !== token) return e.unauthorizedError('token invalido')
+  const got = e.request.header.get('x-maestro-token') || ''
+  return token && got === token
+}
+
+routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
+  if (!maestroOk(e)) return e.unauthorizedError('token invalido')
 
   let body = null
   try {
@@ -39,9 +43,7 @@ routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
 })
 
 routerAdd('POST', '/backend/v1/manutencao/nf-reemitir', (e) => {
-  const token = $secrets.get('MAESTRO_TOKEN') || ''
-  const got = String(e.requestInfo().headers['x-maestro-token'] || '')
-  if (!token || got !== token) return e.unauthorizedError('token invalido')
+  if (!maestroOk(e)) return e.unauthorizedError('token invalido')
 
   let body = null
   try {
@@ -53,7 +55,7 @@ routerAdd('POST', '/backend/v1/manutencao/nf-reemitir', (e) => {
   if (colecao !== 'fechamentos' && colecao !== 'servicos')
     return e.badRequestError('colecao invalida')
 
-  // acha o lancamento pela externalReference gravada na NF
+  // acha o lancamento pela NF gravada nele
   let rec = null
   try {
     const lista = $app.findRecordsByFilter(colecao, 'asaas_invoice_id = {:iid}', '', 1, 0, {
