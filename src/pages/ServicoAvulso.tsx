@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getEmpresas, createEmpresa, createServico, brl, type Empresa } from '@/services/gestor'
+import {
+  getEmpresas,
+  createEmpresa,
+  createServico,
+  brl,
+  type Empresa,
+} from '@/services/gestor'
+import pb from '@/lib/pocketbase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,6 +32,8 @@ export default function ServicoAvulso() {
   const [valor, setValor] = useState('')
   const [dataServico, setDataServico] = useState(new Date().toISOString().slice(0, 10))
   const [dataVenc, setDataVenc] = useState('')
+  // NF é escolha POR SERVIÇO (não automática) — pedido 08/10
+  const [emitirNfServico, setEmitirNfServico] = useState(false)
 
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -59,7 +68,7 @@ export default function ServicoAvulso() {
         cnpj_cpf: cnpjCpf,
         email,
         endereco,
-        emite_nf: emiteNf,
+        emite_nf: emitirNfServico,
         ativo: true,
         tipo_cliente: 'avulso',
       })
@@ -99,15 +108,15 @@ export default function ServicoAvulso() {
     setSalvando(true)
     try {
       const s = await createServico({
-        empresa: empresaId,
-        descricao,
-        valor: v,
-        data_servico: dataServico,
-        data_vencimento: dataVenc,
-        emite_nf: selecionada ? selecionada.emite_nf : emiteNf,
-        status: 'emitido',
-      })
-      setCriado(s as unknown as Record<string, unknown>)
+      empresa: empresaId,
+      descricao,
+      valor: v,
+      data_servico: dataServico,
+      data_vencimento: dataVenc,
+      // NF é por SERVIÇO (decisão 08/10): usa a escolha da tela, não a da empresa
+      emite_nf: emitirNfServico,
+      status: 'emitido',
+    })      setCriado(s as unknown as Record<string, unknown>)
     } catch (err) {
       const detalhe =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message || ''
@@ -164,11 +173,20 @@ export default function ServicoAvulso() {
               ) : null}
               <Button
                 variant="outline"
-                onClick={() =>
+                onClick={async () => {
+                  // config REAL do banco (marca/e-mail sempre atualizados)
+                  const cfgList = await pb.collection('config').getFullList()
+                  const cfg = cfgList[0]
                   gerarPdfServico(criado, selecionada, {
-                    razao_social: 'LCCA Tecnologia',
+                    razao_social: cfg?.razao_social ?? '',
+                    nome_fantasia: cfg?.nome_fantasia ?? '',
+                    cnpj: cfg?.cnpj ?? '',
+                    endereco: cfg?.endereco ?? '',
+                    cidade_uf: cfg?.cidade_uf ?? '',
+                    telefone: cfg?.telefone ?? '',
+                    email: cfg?.email ?? '',
                   })
-                }
+                }}
               >
                 Ver relatório do serviço (OS)
               </Button>
@@ -182,6 +200,7 @@ export default function ServicoAvulso() {
                 setDescricao('')
                 setValor('')
                 setDataVenc('')
+                setEmitirNfServico(false)
               }}
             >
               Novo serviço
@@ -234,6 +253,19 @@ export default function ServicoAvulso() {
                 <Label>Vencimento da cobrança</Label>
                 <Input type="date" value={dataVenc} onChange={(e) => setDataVenc(e.target.value)} />
               </div>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div>
+                  <span className="text-sm font-medium">Emitir nota fiscal (NFS-e)</span>
+                  <p className="text-xs text-muted-foreground">
+                    Desligado = só relatório (OS) + boleto/Pix
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={emitirNfServico}
+                  onChange={(e) => setEmitirNfServico(e.target.checked)}
+                />
+              </div>
               {erro && <p className="text-sm text-red-600">{erro}</p>}
               <Button
                 className="w-full bg-teal-600 hover:bg-teal-700"
@@ -267,11 +299,16 @@ export default function ServicoAvulso() {
               <Input value={endereco} onChange={(e) => setEndereco(e.target.value)} />
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
-              <span className="text-sm font-medium">Emite nota fiscal</span>
+              <div>
+                <span className="text-sm font-medium">Emitir nota fiscal (NFS-e)</span>
+                <p className="text-xs text-muted-foreground">
+                  Escolha por serviço — desligado = só OS + boleto/Pix
+                </p>
+              </div>
               <input
                 type="checkbox"
-                checked={emiteNf}
-                onChange={(e) => setEmiteNf(e.target.checked)}
+                checked={emitirNfServico}
+                onChange={(e) => setEmitirNfServico(e.target.checked)}
               />
             </div>
             <div className="space-y-1">
