@@ -6,6 +6,38 @@
 // Sem token -> 401. Nada aqui expõe dados de clientes.
 // NOTA JSVM: toda a lógica INLINE nos callbacks (funções de topo não existem no pool).
 
+routerAdd('POST', '/backend/v1/manutencao/ver', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const filtro = String((body && body.filtro) || '')
+  const campos = (body && body.campos) || []
+  const sort = String((body && body.sort) || '-created')
+  const params = (body && body.params) || {}
+  if (!colecao) return e.badRequestError('colecao obrigatoria')
+
+  const lista = $app.findRecordsByFilter(colecao, filtro || 'id != ""', sort, 20, 0, params)
+  const saida = []
+  for (const r of lista) {
+    const o = { id: r.id }
+    for (const c of campos) {
+      try {
+        o[c] = r.get(c)
+      } catch (_) {
+        o[c] = null
+      }
+    }
+    saida.push(o)
+  }
+  return e.json(200, { total: saida.length, items: saida })
+})
+
 routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
