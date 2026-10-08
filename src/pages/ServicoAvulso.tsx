@@ -1,11 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  getEmpresas,
-  createEmpresa,
-  createServico,
-  brl,
-  type Empresa,
-} from '@/services/gestor'
+import { getEmpresas, createEmpresa, createServico, brl, type Empresa } from '@/services/gestor'
 import pb from '@/lib/pocketbase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -108,15 +102,16 @@ export default function ServicoAvulso() {
     setSalvando(true)
     try {
       const s = await createServico({
-      empresa: empresaId,
-      descricao,
-      valor: v,
-      data_servico: dataServico,
-      data_vencimento: dataVenc,
-      // NF é por SERVIÇO (decisão 08/10): usa a escolha da tela, não a da empresa
-      emite_nf: emitirNfServico,
-      status: 'emitido',
-    })      setCriado(s as unknown as Record<string, unknown>)
+        empresa: empresaId,
+        descricao,
+        valor: v,
+        data_servico: dataServico,
+        data_vencimento: dataVenc,
+        // NF é por SERVIÇO (decisão 08/10): usa a escolha da tela, não a da empresa
+        emite_nf: emitirNfServico,
+        status: 'emitido',
+      })
+      setCriado(s as unknown as Record<string, unknown>)
     } catch (err) {
       const detalhe =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message || ''
