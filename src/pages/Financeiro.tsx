@@ -1,11 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getFechamentosAll, pbExport as pb, brl, type Fechamento } from '@/services/gestor'
+import {
+  getFechamentosAll,
+  getServicos,
+  pbExport as pb,
+  brl,
+  type Fechamento,
+} from '@/services/gestor'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { ReemitirNF } from '@/components/ReemitirNF'
 
-type Linha = Fechamento & { empresaNome?: string }
+interface ServicoLinha {
+  id: string
+  empresaNome: string
+  descricao: string
+  valor: number
+  data_vencimento: string
+  data_pagamento: string
+  status: string
+  emite_nf: boolean
+  asaas_invoice_id: string
+  asaas_invoice_url: string
+  asaas_boleto_url: string
+}
 
 const hoje = () => new Date().toISOString().slice(0, 10)
 
@@ -16,8 +35,11 @@ const diasAtraso = (venc: string) => {
   return Math.max(0, Math.floor((h - v) / 86400000))
 }
 
+const dataBR = (iso: string) => (iso || '').slice(0, 10).split('-').reverse().join('/')
+
 export default function Financeiro() {
   const [linhas, setLinhas] = useState<Linha[]>([])
+  const [servicos, setServicos] = useState<ServicoLinha[]>([])
   const [carregando, setCarregando] = useState(true)
   const [filtro, setFiltro] = useState<'abertos' | 'pagos' | 'todos'>('abertos')
   const [busca, setBusca] = useState('')
@@ -26,8 +48,31 @@ export default function Financeiro() {
 
   const carregar = () => {
     setCarregando(true)
-    getFechamentosAll()
-      .then(setLinhas)
+    Promise.all([getFechamentosAll(), getServicos()])
+      .then(([fechs, servs]) => {
+        setLinhas(fechs)
+        setServicos(
+          servs.map((s) => {
+            const r = s as Record<string, unknown>
+            return {
+              id: String(s.id),
+              empresaNome:
+                ((r.expand as { empresa?: { nome?: string } } | undefined)?.empresa?.nome ??
+                  String(r.empresa ?? '')) ||
+                '—',
+              descricao: String(r.descricao ?? ''),
+              valor: Number(r.valor ?? 0),
+              data_vencimento: String(r.data_vencimento ?? ''),
+              data_pagamento: String(r.data_pagamento ?? ''),
+              status: String(r.status ?? ''),
+              emite_nf: Boolean(r.emite_nf),
+              asaas_invoice_id: String(r.asaas_invoice_id ?? ''),
+              asaas_invoice_url: String(r.asaas_invoice_url ?? ''),
+              asaas_boleto_url: String(r.asaas_boleto_url ?? ''),
+            }
+          }),
+        )
+      })
       .finally(() => setCarregando(false))
   }
 
@@ -43,6 +88,17 @@ export default function Financeiro() {
 
   const desfazer = async (id: string) => {
     await pb.collection('fechamentos').update(id, { status: 'emitido', data_pagamento: '' })
+    carregar()
+  }
+
+  const darBaixaServico = async (id: string) => {
+    await pb.collection('servicos').update(id, { status: 'pago', data_pagamento: baixaData })
+    setBaixaId(null)
+    carregar()
+  }
+
+  const desfazerServico = async (id: string) => {
+    await pb.collection('servicos').update(id, { status: 'emitido', data_pagamento: '' })
     carregar()
   }
 
@@ -82,6 +138,30 @@ export default function Financeiro() {
       })
   }, [linhasComNome, filtro, busca])
 
+  const servicosVisiveis = useMemo(() => {
+    const alvo = busca.toLowerCase()
+    return servicos
+      .filter((s) => {
+        const pago = s.status === 'pago'
+        if (filtro === 'pagos') return pago
+        if (filtro === 'abertos') return !pago
+        return true
+      })
+      .filter(
+        (s) =>
+          !alvo ||
+          s.empresaNome.toLowerCase().includes(alvo) ||
+          s.descricao.toLowerCase().includes(alvo),
+      )
+      .sort((a, b) => {
+        const pa = a.status === 'pago' ? 1 : 0
+        const pbv = b.status === 'pago' ? 1 : 0
+        if (pa !== pbv) return pa - pbv
+        if (!pa) return diasAtraso(b.data_vencimento) - diasAtraso(a.data_vencimento)
+        return (b.data_vencimento || '').localeCompare(a.data_vencimento || '')
+      })
+  }, [servicos, filtro, busca])
+
   const resumo = useMemo(() => {
     let recebido = 0
     let aReceber = 0
@@ -99,8 +179,12 @@ export default function Financeiro() {
         }
       }
     }
-    return { recebido, aReceber, atrasado, atrasados }
-  }, [linhasComNome])
+    const servRecebido = servicos
+      .filter((s) => s.status === 'pago')
+      .reduce((a, s) => a + s.valor, 0)
+    const servAberto = servicos.filter((s) => s.status !== 'pago').reduce((a, s) => a + s.valor, 0)
+    return { recebido, aReceber, atrasado, atrasados, servRecebido, servAberto }
+  }, [linhasComNome, servicos])
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -126,26 +210,26 @@ export default function Financeiro() {
           <div className="grid gap-4 md:grid-cols-4 mb-6">
             <Card>
               <CardContent className="py-4">
-                <p className="text-xs text-muted-foreground">Recebido</p>
+                <p className="text-xs text-muted-foreground">Recebido (mensalidade)</p>
                 <p className="text-2xl font-bold text-teal-700">{brl(resumo.recebido)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="py-4">
-                <p className="text-xs text-muted-foreground">A receber</p>
+                <p className="text-xs text-muted-foreground">A receber (mensalidade)</p>
                 <p className="text-2xl font-bold">{brl(resumo.aReceber)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="py-4">
-                <p className="text-xs text-muted-foreground">Em atraso</p>
-                <p className="text-2xl font-bold text-red-600">{brl(resumo.atrasado)}</p>
+                <p className="text-xs text-muted-foreground">Serviços recebidos</p>
+                <p className="text-2xl font-bold text-teal-700">{brl(resumo.servRecebido)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="py-4">
-                <p className="text-xs text-muted-foreground">Clientes atrasados</p>
-                <p className="text-2xl font-bold text-red-600">{resumo.atrasados}</p>
+                <p className="text-xs text-muted-foreground">Serviços a receber</p>
+                <p className="text-2xl font-bold">{brl(resumo.servAberto)}</p>
               </CardContent>
             </Card>
           </div>
@@ -164,7 +248,9 @@ export default function Financeiro() {
             ))}
           </div>
 
-          <Card>
+          {/* ===== MENSALIDADES (fechamentos) ===== */}
+          <h2 className="text-lg font-semibold mb-2">Mensalidades (fechamentos)</h2>
+          <Card className="mb-8">
             <CardContent className="py-2">
               <div className="divide-y">
                 {visiveis.length === 0 && (
@@ -173,13 +259,13 @@ export default function Financeiro() {
                 {visiveis.map((l) => {
                   const pago = l.status === 'pago'
                   const atraso = pago ? 0 : diasAtraso(l.data_vencimento)
+                  const rec = l as unknown as Record<string, unknown>
                   return (
                     <div key={l.id} className="flex items-center gap-4 py-3 flex-wrap">
                       <div className="flex-1 min-w-48">
                         <p className="font-medium text-sm">{l.empresaNome}</p>
                         <p className="text-xs text-muted-foreground">
-                          competência {l.competencia} · venc.{' '}
-                          {(l.data_vencimento || '').slice(0, 10).split('-').reverse().join('/')}
+                          competência {l.competencia} · venc. {dataBR(l.data_vencimento)}
                         </p>
                       </div>
                       <div className="text-right">
@@ -202,6 +288,16 @@ export default function Financeiro() {
                         <Badge className="bg-red-600">Atrasado {atraso}d</Badge>
                       ) : (
                         <Badge variant="secondary">Em aberto</Badge>
+                      )}
+                      {/* NF em fila ou link p/ emitir */}
+                      {String(rec.asaas_invoice_id ?? '') &&
+                        !String(rec.asaas_invoice_url ?? '') && (
+                          <Badge variant="secondary" className="animate-pulse">
+                            NF na fila…
+                          </Badge>
+                        )}
+                      {String(rec.asaas_invoice_id ?? '') && (
+                        <ReemitirNF colecao="fechamentos" id={l.id} onOk={carregar} />
                       )}
                       {!pago &&
                         (baixaId === l.id ? (
@@ -231,6 +327,106 @@ export default function Financeiro() {
                             onClick={() => {
                               setBaixaData(hoje())
                               setBaixaId(l.id)
+                            }}
+                          >
+                            Dar baixa
+                          </Button>
+                        ))}
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ===== SERVIÇOS AVULSOS ===== */}
+          <h2 className="text-lg font-semibold mb-2">Serviços avulsos</h2>
+          <Card>
+            <CardContent className="py-2">
+              <div className="divide-y">
+                {servicosVisiveis.length === 0 && (
+                  <p className="py-6 text-sm text-muted-foreground">Nenhum serviço aqui.</p>
+                )}
+                {servicosVisiveis.map((s) => {
+                  const pago = s.status === 'pago'
+                  const atraso = pago ? 0 : diasAtraso(s.data_vencimento)
+                  return (
+                    <div key={s.id} className="flex items-center gap-4 py-3 flex-wrap">
+                      <div className="flex-1 min-w-48">
+                        <p className="font-medium text-sm">{s.empresaNome}</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-72">
+                          {s.descricao} · venc. {dataBR(s.data_vencimento)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">valor</p>
+                        <p className="font-semibold">{brl(s.valor)}</p>
+                      </div>
+                      {pago ? (
+                        <>
+                          <Badge className="bg-teal-600">Pago</Badge>
+                          <button
+                            className="text-xs text-slate-400 underline hover:text-slate-600"
+                            onClick={() => desfazerServico(s.id)}
+                          >
+                            desfazer
+                          </button>
+                        </>
+                      ) : atraso > 0 ? (
+                        <Badge className="bg-red-600">Atrasado {atraso}d</Badge>
+                      ) : (
+                        <Badge variant="secondary">Em aberto</Badge>
+                      )}
+                      {s.asaas_boleto_url && (
+                        <button
+                          className="text-xs text-teal-700 underline"
+                          onClick={() => window.open(s.asaas_boleto_url, '_blank')}
+                        >
+                          Boleto
+                        </button>
+                      )}
+                      {s.asaas_invoice_url ? (
+                        <button
+                          className="text-xs text-indigo-700 underline"
+                          onClick={() => window.open(s.asaas_invoice_url, '_blank')}
+                        >
+                          NF
+                        </button>
+                      ) : s.asaas_invoice_id ? (
+                        <Badge variant="secondary" className="animate-pulse">
+                          NF na fila…
+                        </Badge>
+                      ) : (
+                        <ReemitirNF colecao="servicos" id={s.id} onOk={carregar} />
+                      )}
+                      {!pago &&
+                        (baixaId === s.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="date"
+                              className="h-8 w-36"
+                              value={baixaData}
+                              onChange={(e) => setBaixaData(e.target.value)}
+                            />
+                            <Button
+                              size="sm"
+                              className="bg-teal-600 hover:bg-teal-700"
+                              onClick={() => darBaixaServico(s.id)}
+                            >
+                              Confirmar
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setBaixaId(null)}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-teal-600 text-teal-700 hover:bg-teal-50"
+                            onClick={() => {
+                              setBaixaData(hoje())
+                              setBaixaId(s.id)
                             }}
                           >
                             Dar baixa
