@@ -53,7 +53,7 @@ export default function ServicoAvulso() {
       const bairro = d.bairro || ''
       const cid = d.localidade || ''
       const uf = d.uf || ''
-      const numero = (texto.match(/,\s*([^,]*)/) || [, ''])[1].trim()
+      const numero = (texto.match(/,\s*([^,]*)/) || ['', ''])[1].trim()
       const partes = [rua, numero, bairro, `${cid} - ${uf}`, cep].filter(Boolean)
       setEndereco(partes.join(', '))
     } catch {

@@ -67,7 +67,7 @@ export default function Empresas() {
       const cid = d.localidade || ''
       const uf = d.uf || ''
       const atual = editando.endereco || ''
-      const numero = (atual.match(/,\s*([^,]*)/) || [, ''])[1].trim()
+      const numero = (atual.match(/,\s*([^,]*)/) || ['', ''])[1].trim()
       const partes = [rua, numero, bairro, `${cid} - ${uf}`, cep].filter(Boolean)
       setEditando({ ...editando, endereco: partes.join(', ') })
     } catch {
