@@ -22,11 +22,11 @@ routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
   const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
   const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
 
+  // Curitiba exige cancelamento REAL: sem o atributo cancelOnlyOnAsaas
   const r = $http.send({
     url: base + '/invoices/' + invoiceId + '/cancel',
     method: 'POST',
     headers,
-    body: JSON.stringify({ cancelOnlyOnAsaas: true }),
   })
   console.log(
     '[manutencao] cancelar NF',
