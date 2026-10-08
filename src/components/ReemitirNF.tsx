@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { pb } from '@/lib/pocketbase/client'
+import pb from '@/lib/pocketbase/client'
 
 // Botão "Emitir NF" — para reemitir a NFS-e de um fechamento/serviço que ficou
 // sem nota (ex.: endereço incompleto no Asaas na 1ª tentativa). Chama o hook
