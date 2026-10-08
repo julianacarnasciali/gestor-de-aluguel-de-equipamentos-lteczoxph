@@ -23,9 +23,10 @@ routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
   const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
 
   const r = $http.send({
-    url: base + '/invoices/' + invoiceId,
-    method: 'DELETE',
+    url: base + '/invoices/' + invoiceId + '/cancel',
+    method: 'POST',
     headers,
+    body: JSON.stringify({ cancelOnlyOnAsaas: true }),
   })
   console.log(
     '[manutencao] cancelar NF',
