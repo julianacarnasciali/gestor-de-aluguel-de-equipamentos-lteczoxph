@@ -84,11 +84,22 @@ export default function Empresas() {
         return
       }
       if (!editando) return
-      // extrai número (e complemento tipo "150-42F" ou "42F") do endereço atual se já digitou
+      // extrai número/complemento do endereço atual — mas o endereço pode estar
+      // no padrão completo "Rua, N, Bairro, Cidade - UF, CEP" (5 partes): ignora
+      // bairro/cidade/CEP repetidos (proteção contra duplicação do CEP-first)
       const atual = editando.endereco || ''
-      const m = atual.match(/,\s*([\d]+[\w-]*)\s*(?:,\s*(.*))?/) || []
-      const numero = (m[1] || '').trim()
-      const complemento = (m[2] || '').trim()
+      const partes = atual
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      let numero = ''
+      let complemento = ''
+      if (partes.length >= 2) {
+        numero = partes[1] // 2ª parte é sempre o número
+        // complemento = tudo que NÃO é o padrão (só faz sentido se sobrar algo
+        // depois do CEP — partes 5+)
+        if (partes.length > 5) complemento = partes.slice(5).join(', ')
+      }
       setEditando({
         ...editando,
         cep: cepLimpo,
