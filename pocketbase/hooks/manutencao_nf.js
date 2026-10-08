@@ -1,0 +1,211 @@
+// Rota de manutenção: cancela NFS-e com erro e reagenda a emissão.
+// Uso (via curl, por mim — o token vem do cofre do projeto):
+//   POST /backend/v1/manutencao/nf-reemitir { "invoiceId": "inv_..." }
+//   POST /backend/v1/manutencao/nf-cancelar { "invoiceId": "inv_..." }
+// Autenticação: header x-maestro-token com o valor do secret MAESTRO_TOKEN.
+// Sem token -> 401. Nada aqui expõe dados de clientes.
+
+routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = String(e.requestInfo().headers['x-maestro-token'] || '')
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const invoiceId = String((body && body.invoiceId) || '')
+  if (!invoiceId) return e.badRequestError('invoiceId obrigatorio')
+
+  const apiKey = $secrets.get('ASAAS_API_KEY')
+  const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
+  const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+
+  const r = $http.send({
+    url: base + '/invoices/' + invoiceId,
+    method: 'DELETE',
+    headers,
+  })
+  console.log(
+    '[manutencao] cancelar NF',
+    invoiceId,
+    r.statusCode,
+    JSON.stringify(r.json || {}).slice(0, 300),
+  )
+  if (r.statusCode !== 200) {
+    return e.badRequestError('Asaas: ' + JSON.stringify(r.json).slice(0, 250))
+  }
+  return e.json(200, { ok: true, cancelled: invoiceId })
+})
+
+routerAdd('POST', '/backend/v1/manutencao/nf-reemitir', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = String(e.requestInfo().headers['x-maestro-token'] || '')
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const invoiceId = String((body && body.invoiceId) || '')
+  const colecao = String((body && body.colecao) || 'fechamentos')
+  if (!invoiceId) return e.badRequestError('invoiceId obrigatorio')
+  if (colecao !== 'fechamentos' && colecao !== 'servicos')
+    return e.badRequestError('colecao invalida')
+
+  // acha o lancamento pela externalReference gravada na NF
+  let rec = null
+  try {
+    const lista = $app.findRecordsByFilter(colecao, 'asaas_invoice_id = {:iid}', '', 1, 0, {
+      iid: invoiceId,
+    })
+    if (lista.length > 0) rec = lista[0]
+  } catch (_) {}
+  if (!rec) return e.badRequestError('lancamento com essa NF nao encontrado')
+
+  const empresaId = rec.getString('empresa')
+  let empresa = null
+  try {
+    empresa = $app.findRecordById('empresas', empresaId)
+  } catch (_) {}
+  if (!empresa) return e.badRequestError('empresa nao encontrada')
+
+  const apiKey = $secrets.get('ASAAS_API_KEY')
+  const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
+  const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+
+  // 1) cliente: reutiliza/cria e ATUALIZA com dados atuais da empresa
+  let customerId = String(empresa.getString('asaas_customer_id') || '')
+  const doc = String(empresa.getString('cnpj_cpf') || '').replace(/\D/g, '')
+  const email = String(empresa.getString('email') || empresa.getString('responsavel_email') || '')
+  const enderecoTxt = String(empresa.getString('endereco') || '')
+  try {
+    if (!customerId && doc) {
+      const r1 = $http.send({ url: base + '/customers?cpfCnpj=' + doc, method: 'GET', headers })
+      if (r1.statusCode === 200 && r1.json.totalCount > 0) customerId = r1.json.data[0].id
+    }
+    const partes = enderecoTxt
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const corpoUpd = { name: empresa.getString('nome') }
+    if (email) corpoUpd.email = email
+    let rua = '',
+      numero = '',
+      bairro = '',
+      cidUf = '',
+      cep = ''
+    if (partes.length >= 5) {
+      rua = partes[0]
+      numero = partes[1]
+      bairro = partes[2]
+      cidUf = partes[3]
+      cep = partes[4]
+    } else if (partes.length === 4) {
+      rua = partes[0]
+      numero = partes[1]
+      cidUf = partes[2]
+      cep = partes[3]
+    }
+    if (rua) corpoUpd.address = rua
+    if (numero) corpoUpd.addressNumber = numero
+    if (bairro) corpoUpd.province = bairro
+    const cidadeUf = cidUf.split('-').map((s) => s.trim())
+    if (cidadeUf[0]) corpoUpd.cityName = cidadeUf[0]
+    if (cidadeUf[1]) corpoUpd.state = cidadeUf[1]
+    const cepLimpo = cep.replace(/\D/g, '')
+    if (cepLimpo.length === 8) corpoUpd.postalCode = cepLimpo
+    if (partes.length > 5) corpoUpd.addressComplement = partes.slice(5).join(', ')
+    if (customerId) {
+      const ru = $http.send({
+        url: base + '/customers/' + customerId,
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(corpoUpd),
+      })
+      if (ru.statusCode !== 200)
+        console.warn(
+          '[manutencao] update customer falhou',
+          ru.statusCode,
+          JSON.stringify(ru.json).slice(0, 200),
+        )
+    } else {
+      corpoUpd.cpfCnpj = doc
+      corpoUpd.externalReference = empresa.id
+      const rc = $http.send({
+        url: base + '/customers',
+        method: 'POST',
+        headers,
+        body: JSON.stringify(corpoUpd),
+      })
+      if (rc.statusCode === 200) {
+        customerId = rc.json.id
+        empresa.set('asaas_customer_id', customerId)
+        $app.save(empresa)
+      } else {
+        return e.badRequestError(
+          'cliente no Asaas falhou: ' + JSON.stringify(rc.json).slice(0, 200),
+        )
+      }
+    }
+  } catch (errC) {
+    console.warn('[manutencao] erro customer', errC)
+  }
+  if (!customerId) return e.badRequestError('sem cliente no Asaas')
+
+  // 2) valor e vinculo com o payment
+  const valor =
+    Number(rec.getFloat('valor_final')) ||
+    Number(rec.getFloat('total')) ||
+    Number(rec.getFloat('valor')) ||
+    0
+  if (!valor || valor <= 0) return e.badRequestError('lancamento sem valor')
+  const paymentId = String(rec.getString('asaas_payment_id') || '')
+
+  // 3) agenda a NF de novo (data de emissao = hoje)
+  const competencia = rec.getString('competencia') || ''
+  const ehServico = colecao === 'servicos'
+  const descricaoServico = ehServico
+    ? String(rec.getString('descricao') || 'Serviço avulso')
+    : 'Prestação de serviços de suporte de TI e impressoras e multifuncionais referentes ao contrato mensal' +
+      (competencia ? ' — competência ' + competencia : '')
+
+  const hojeISO = new Date().toISOString().slice(0, 10)
+  const corpoNF = {
+    customer: customerId,
+    value: valor,
+    deductions: 0,
+    effectiveDate: hojeISO,
+    serviceDescription: descricaoServico,
+    observations: ehServico
+      ? 'Serviço avulso — LCCA Tech'
+      : 'Ref. contrato de locação de bens móveis — LCCA Tech',
+    externalReference: rec.id,
+    municipalServiceCode: '14.02.01',
+    municipalServiceName: 'Assistência técnica',
+    taxes: { retainIss: false, iss: 2.01, pis: 0, cofins: 0, csll: 0, ir: 0, inss: 0 },
+  }
+  if (paymentId) corpoNF.payment = paymentId
+
+  const rNF = $http.send({
+    url: base + '/invoices',
+    method: 'POST',
+    headers,
+    body: JSON.stringify(corpoNF),
+  })
+  if (rNF.statusCode !== 200) {
+    console.warn(
+      '[manutencao] invoice falhou',
+      rNF.statusCode,
+      JSON.stringify(rNF.json).slice(0, 300),
+    )
+    return e.badRequestError('Asaas: ' + JSON.stringify(rNF.json).slice(0, 250))
+  }
+
+  rec.set('asaas_invoice_id', rNF.json.id || '')
+  rec.set('asaas_invoice_status', rNF.json.status || '')
+  rec.set('asaas_invoice_url', rNF.json.pdfUrl || rNF.json.externalPdfUrl || '')
+  $app.save(rec)
+  console.log('[manutencao] NFS-e reagendada', rNF.json.id, 'p/', colecao, rec.id)
+  return e.json(200, { ok: true, invoice: rNF.json.id, status: rNF.json.status })
+})
