@@ -194,7 +194,10 @@ export default function Leituras() {
       if (!mapa.has(nome)) mapa.set(nome, { empresa: nome, maquinas: [] })
       mapa.get(nome)!.maquinas.push(eq)
     }
-    return [...mapa.values()]
+    // empresas em ordem alfabética (pedido 08/10)
+    return [...mapa.values()].sort((a, b) =>
+      a.empresa.localeCompare(b.empresa, 'pt-BR', { sensitivity: 'base' }),
+    )
   }, [maquinas, busca])
 
   const totalMes = maquinas.reduce((acc, eq) => {
