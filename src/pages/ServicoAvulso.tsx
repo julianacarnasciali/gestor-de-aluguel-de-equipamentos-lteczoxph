@@ -33,6 +33,35 @@ export default function ServicoAvulso() {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [criado, setCriado] = useState<Record<string, unknown> | null>(null)
+  // busca de CEP (ViaCEP — base oficial dos Correios)
+  const [cepBuscando, setCepBuscando] = useState(false)
+  const [cepErro, setCepErro] = useState('')
+
+  const buscarCep = async (texto: string) => {
+    const cep = texto.replace(/\D/g, '')
+    if (cep.length !== 8) return
+    setCepBuscando(true)
+    setCepErro('')
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const d = await r.json()
+      if (d.erro) {
+        setCepErro('CEP não encontrado — confere o número.')
+        return
+      }
+      const rua = d.logradouro || ''
+      const bairro = d.bairro || ''
+      const cid = d.localidade || ''
+      const uf = d.uf || ''
+      const numero = (texto.match(/,\s*([^,]*)/) || [, ''])[1].trim()
+      const partes = [rua, numero, bairro, `${cid} - ${uf}`, cep].filter(Boolean)
+      setEndereco(partes.join(', '))
+    } catch {
+      setCepErro('Falhou a consulta — preenche na mão.')
+    } finally {
+      setCepBuscando(false)
+    }
+  }
 
   useEffect(() => {
     getEmpresas()
@@ -304,8 +333,17 @@ export default function ServicoAvulso() {
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Endereço (Rua, nº, Cidade - UF, CEP)</Label>
-              <Input value={endereco} onChange={(e) => setEndereco(e.target.value)} />
+              <Label>
+                Endereço{' '}
+                {cepBuscando && <span className="text-xs text-teal-700">buscando CEP…</span>}
+              </Label>
+              <Input
+                value={endereco}
+                onChange={(e) => setEndereco(e.target.value)}
+                onBlur={(e) => buscarCep(e.target.value)}
+                placeholder="Cole o CEP no fim — o sistema completa pelos Correios"
+              />
+              {cepErro && <p className="text-xs text-red-600">{cepErro}</p>}
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>

@@ -44,6 +44,38 @@ export default function Empresas() {
   const [erroForm, setErroForm] = useState('')
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
   const [dialogEqEmpresa, setDialogEqEmpresa] = useState<Empresa | null>(null)
+  // busca de CEP (ViaCEP — base oficial dos Correios)
+  const [cepBuscando, setCepBuscando] = useState(false)
+  const [cepErro, setCepErro] = useState('')
+
+  const buscarCep = async (cepDigitado: string) => {
+    const cep = cepDigitado.replace(/\D/g, '')
+    if (cep.length !== 8) return
+    setCepBuscando(true)
+    setCepErro('')
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const d = await r.json()
+      if (d.erro) {
+        setCepErro('CEP não encontrado — confere o número.')
+        return
+      }
+      if (!editando) return
+      // preenche endereço no padrão do sistema: "Rua X, N, Bairro, Cidade - UF, CEP"
+      const rua = d.logradouro || ''
+      const bairro = d.bairro || ''
+      const cid = d.localidade || ''
+      const uf = d.uf || ''
+      const atual = editando.endereco || ''
+      const numero = (atual.match(/,\s*([^,]*)/) || [, ''])[1].trim()
+      const partes = [rua, numero, bairro, `${cid} - ${uf}`, cep].filter(Boolean)
+      setEditando({ ...editando, endereco: partes.join(', ') })
+    } catch {
+      setCepErro('Falhou a consulta — preenche na mão.')
+    } finally {
+      setCepBuscando(false)
+    }
+  }
 
   useEffect(() => {
     Promise.all([getEmpresas(), getContratos(), getEquipamentos()])
@@ -275,11 +307,17 @@ export default function Empresas() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Endereço</Label>
+                  <Label>
+                    Endereço{' '}
+                    {cepBuscando && <span className="text-xs text-teal-700">buscando CEP…</span>}
+                  </Label>
                   <Input
                     value={editando.endereco}
                     onChange={(e) => setEditando({ ...editando, endereco: e.target.value })}
+                    onBlur={(e) => buscarCep(e.target.value)}
+                    placeholder="Cole o CEP no fim do endereço — o sistema completa rua/bairro/cidade dos Correios"
                   />
+                  {cepErro && <p className="text-xs text-red-600">{cepErro}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
