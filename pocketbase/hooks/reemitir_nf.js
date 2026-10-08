@@ -139,16 +139,13 @@ routerAdd('POST', '/backend/v1/reemitir-nf', (e) => {
     : 'Prestação de serviços de suporte de TI e impressoras e multifuncionais referentes ao contrato mensal' +
       (competencia ? ' — competência ' + competencia : '')
 
+  // a NF não aceita data passada — usa HOJE (a prefeitura exige)
+  const hojeISO = new Date().toISOString().slice(0, 10)
   const corpoNF = {
     customer: customerId,
     value: valor,
     deductions: 0,
-    effectiveDate: String(
-      rec.getString('data_emissao') ||
-        rec.getString('data_servico') ||
-        rec.getString('data_vencimento') ||
-        '',
-    ).slice(0, 10),
+    effectiveDate: hojeISO,
     serviceDescription: descricaoServico,
     observations: ehServico
       ? 'Serviço avulso — LCCA Tech'
