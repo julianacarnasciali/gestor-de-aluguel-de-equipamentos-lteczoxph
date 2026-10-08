@@ -33,29 +33,34 @@ export default function ServicoAvulso() {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [criado, setCriado] = useState<Record<string, unknown> | null>(null)
-  // busca de CEP (ViaCEP — base oficial dos Correios)
+  // busca de CEP (ViaCEP — base oficial dos Correios) — CEP PRIMEIRO
   const [cepBuscando, setCepBuscando] = useState(false)
   const [cepErro, setCepErro] = useState('')
+  const [cep, setCep] = useState('')
+  const [numeroComplemento, setNumeroComplemento] = useState('')
 
-  const buscarCep = async (texto: string) => {
-    const cep = texto.replace(/\D/g, '')
-    if (cep.length !== 8) return
+  const buscarCep = async (cepDigitado: string) => {
+    const cepLimpo = cepDigitado.replace(/\D/g, '')
+    if (cepLimpo.length !== 8) return
     setCepBuscando(true)
     setCepErro('')
     try {
-      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const r = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
       const d = await r.json()
       if (d.erro) {
         setCepErro('CEP não encontrado — confere o número.')
         return
       }
-      const rua = d.logradouro || ''
-      const bairro = d.bairro || ''
-      const cid = d.localidade || ''
-      const uf = d.uf || ''
-      const numero = (texto.match(/,\s*([^,]*)/) || ['', ''])[1].trim()
-      const partes = [rua, numero, bairro, `${cid} - ${uf}`, cep].filter(Boolean)
-      setEndereco(partes.join(', '))
+      // montagem no PADRÃO ASAAS: "Rua X, N, Bairro, Cidade - UF, CEP, Complemento"
+      const partes = [
+        d.logradouro || '',
+        numeroComplemento.trim(),
+        d.bairro || '',
+        `${d.localidade || ''} - ${d.uf || ''}`,
+        cepLimpo,
+      ].filter(Boolean)
+      const base = partes.join(', ')
+      setEndereco(base)
     } catch {
       setCepErro('Falhou a consulta — preenche na mão.')
     } finally {
@@ -239,6 +244,12 @@ export default function ServicoAvulso() {
                 setValor('')
                 setDataVenc('')
                 setEmitirNfServico(false)
+                setCep('')
+                setNumeroComplemento('')
+                setEndereco('')
+                setNome('')
+                setCnpjCpf('')
+                setEmail('')
               }}
             >
               Novo serviço
@@ -332,18 +343,36 @@ export default function ServicoAvulso() {
               <Label>E-mail</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>
+                  CEP {cepBuscando && <span className="text-xs text-teal-700">buscando…</span>}
+                </Label>
+                <Input
+                  value={cep}
+                  onChange={(e) => {
+                    setCep(e.target.value)
+                    const limpo = e.target.value.replace(/\D/g, '')
+                    if (limpo.length === 8) buscarCep(limpo)
+                  }}
+                  onBlur={(e) => buscarCep(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="8 dígitos — busca a rua"
+                />
+                {cepErro && <p className="text-xs text-red-600">{cepErro}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label>Número + complemento</Label>
+                <Input
+                  value={numeroComplemento}
+                  onChange={(e) => setNumeroComplemento(e.target.value)}
+                  placeholder="150 ou 150 apto 42F"
+                />
+              </div>
+            </div>
             <div className="space-y-1">
-              <Label>
-                Endereço{' '}
-                {cepBuscando && <span className="text-xs text-teal-700">buscando CEP…</span>}
-              </Label>
-              <Input
-                value={endereco}
-                onChange={(e) => setEndereco(e.target.value)}
-                onBlur={(e) => buscarCep(e.target.value)}
-                placeholder="Cole o CEP no fim — o sistema completa pelos Correios"
-              />
-              {cepErro && <p className="text-xs text-red-600">{cepErro}</p>}
+              <Label>Endereço completo (auto — ajusta se precisar)</Label>
+              <Input value={endereco} onChange={(e) => setEndereco(e.target.value)} />
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>

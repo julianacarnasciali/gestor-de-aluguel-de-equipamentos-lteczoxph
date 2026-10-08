@@ -47,29 +47,53 @@ export default function Empresas() {
   // busca de CEP (ViaCEP — base oficial dos Correios)
   const [cepBuscando, setCepBuscando] = useState(false)
   const [cepErro, setCepErro] = useState('')
+  const [cep, setCep] = useState('')
+
+  // montagem do endereço no PADRÃO DO BANCO ASAAS (NF exige):
+  // "Rua X, N, Bairro, Cidade - UF, CEP" — complemento vai no fim, separado por vírgula
+  const montarEndereco = (
+    dados: {
+      logradouro?: string
+      bairro?: string
+      localidade?: string
+      uf?: string
+    },
+    numero: string,
+    complemento: string,
+    cepOk: string,
+  ) => {
+    const rua = dados.logradouro || ''
+    const bairro = dados.bairro || ''
+    const cid = dados.localidade || ''
+    const uf = dados.uf || ''
+    const partes = [rua, numero, bairro, `${cid} - ${uf}`, cepOk].filter(Boolean)
+    const base = partes.join(', ')
+    return complemento ? `${base}, ${complemento}` : base
+  }
 
   const buscarCep = async (cepDigitado: string) => {
-    const cep = cepDigitado.replace(/\D/g, '')
-    if (cep.length !== 8) return
+    const cepLimpo = cepDigitado.replace(/\D/g, '')
+    if (cepLimpo.length !== 8) return
     setCepBuscando(true)
     setCepErro('')
     try {
-      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const r = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
       const d = await r.json()
       if (d.erro) {
         setCepErro('CEP não encontrado — confere o número.')
         return
       }
       if (!editando) return
-      // preenche endereço no padrão do sistema: "Rua X, N, Bairro, Cidade - UF, CEP"
-      const rua = d.logradouro || ''
-      const bairro = d.bairro || ''
-      const cid = d.localidade || ''
-      const uf = d.uf || ''
+      // extrai número (e complemento tipo "150-42F" ou "42F") do endereço atual se já digitou
       const atual = editando.endereco || ''
-      const numero = (atual.match(/,\s*([^,]*)/) || ['', ''])[1].trim()
-      const partes = [rua, numero, bairro, `${cid} - ${uf}`, cep].filter(Boolean)
-      setEditando({ ...editando, endereco: partes.join(', ') })
+      const m = atual.match(/,\s*([\d]+[\w-]*)\s*(?:,\s*(.*))?/) || []
+      const numero = (m[1] || '').trim()
+      const complemento = (m[2] || '').trim()
+      setEditando({
+        ...editando,
+        cep: cepLimpo,
+        endereco: montarEndereco(d, numero, complemento, cepLimpo),
+      })
     } catch {
       setCepErro('Falhou a consulta — preenche na mão.')
     } finally {
@@ -100,6 +124,10 @@ export default function Empresas() {
     }
     while (base.length < 3) base.push(contatoVazio())
     setEditando({ ...e, contatos: base.slice(0, 3) })
+    // preenche o campo CEP do form a partir do endereço salvo (se tiver)
+    const mcep = (e.endereco || '').match(/(\d{5}-?\d{3})\s*,?\s*[^,]*$/)
+    setCep(mcep ? mcep[1].replace('-', '') : '')
+    setCepErro('')
     setErroForm('')
   }
 
@@ -139,6 +167,10 @@ export default function Empresas() {
         telefone: editando.telefone,
         email: editando.email,
         endereco: editando.endereco,
+        cep:
+          cep.replace(/\D/g, '') ||
+          (editando.endereco || '').match(/(\d{8})\s*,?[^,]*$/)?.[1] ||
+          '',
         grupo: editando.grupo,
         unidade: editando.unidade,
         responsavel_nome: contatos[0].nome,
@@ -284,20 +316,38 @@ export default function Empresas() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>CNPJ/CPF</Label>
+                  <Label>E-mail da empresa</Label>
                   <Input
-                    value={editando.cnpj_cpf}
-                    onChange={(e) => setEditando({ ...editando, cnpj_cpf: e.target.value })}
+                    value={editando.email}
+                    onChange={(e) => setEditando({ ...editando, email: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Telefone</Label>
+                  <Label>
+                    CEP {cepBuscando && <span className="text-xs text-teal-700">buscando…</span>}
+                  </Label>
                   <Input
-                    value={editando.telefone}
-                    onChange={(e) => setEditando({ ...editando, telefone: e.target.value })}
+                    value={cep}
+                    onChange={(e) => {
+                      setCep(e.target.value)
+                      const limpo = e.target.value.replace(/\D/g, '')
+                      if (limpo.length === 8) buscarCep(limpo)
+                    }}
+                    onBlur={(e) => buscarCep(e.target.value)}
+                    inputMode="numeric"
+                    placeholder="8 dígitos — busca a rua sozinho"
                   />
+                  {cepErro && <p className="text-xs text-red-600">{cepErro}</p>}
                 </div>
               </div>
+              <div className="space-y-1">
+                <Label>Endereço (rua, número, bairro, cidade - UF, CEP · complemento no fim)</Label>
+                <Input
+                  value={editando.endereco}
+                  onChange={(e) => setEditando({ ...editando, endereco: e.target.value })}
+                  placeholder="Rua X, N, Bairro, Cidade - UF, CEP, Complemento"
+                />
+              </div>{' '}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>E-mail da empresa</Label>
@@ -368,7 +418,6 @@ export default function Empresas() {
                   </p>
                 </div>
               </div>
-
               <div className="space-y-2">
                 <Label>E-mails para envio do fechamento (1º obrigatório)</Label>
                 {[0, 1, 2].map((idx) => (
@@ -395,7 +444,6 @@ export default function Empresas() {
                   Ex.: gerente, administrativo, faturamento — o fechamento vai para todos.
                 </p>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Indicado por (cliente)</Label>
@@ -434,7 +482,6 @@ export default function Empresas() {
                     .join(', ') || '—'}
                 </p>
               </div>
-
               <div className="space-y-1">
                 <Label>Observações</Label>
                 <Input
@@ -442,7 +489,6 @@ export default function Empresas() {
                   onChange={(e) => setEditando({ ...editando, observacoes: e.target.value })}
                 />
               </div>
-
               <div className="flex items-center justify-between rounded-md border p-3">
                 <span className="text-sm font-medium">Emite nota fiscal</span>
                 <Switch
@@ -457,7 +503,6 @@ export default function Empresas() {
                   onCheckedChange={(v) => setEditando({ ...editando, ativo: v })}
                 />
               </div>
-
               {erroForm && <p className="text-sm text-red-600">{erroForm}</p>}
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setEditando(null)}>
