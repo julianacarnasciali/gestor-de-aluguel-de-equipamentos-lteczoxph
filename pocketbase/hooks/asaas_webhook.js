@@ -49,9 +49,25 @@ routerAdd('POST', '/backend/v1/webhooks/asaas', (e) => {
   }
 
   // NFS-e: INVOICE_AUTHORIZED confirma emissão; INVOICE_ERROR registra falha
+  // (o Asaas manda invoice em body.invoice OU payment em body.payment com invoice)
   if (evento === 'INVOICE_AUTHORIZED' || evento === 'INVOICE_ERROR') {
-    const nf = (body && body.invoice) || {}
-    const invoiceId = nf.id || ''
+    const nf = (body && (body.invoice || body.payment)) || {}
+    let invoiceId = nf.id || ''
+    // fallback: o Asaas às vezes envia o payment e a NF vem por GET /payments/{id}
+    if (!invoiceId && paymentId) {
+      try {
+        const apiKey = $secrets.get('ASAAS_API_KEY')
+        const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
+        const rp = $http.send({
+          url: base + '/payments/' + paymentId,
+          method: 'GET',
+          headers: { access_token: apiKey },
+        })
+        invoiceId = String(rp.json.invoice || rp.json.invoiceNumber || '')
+      } catch (errF) {
+        console.warn('[asaas-webhook] falha ao buscar invoice do payment', paymentId, errF)
+      }
+    }
     if (invoiceId) {
       try {
         const f = $app.findFirstRecordByFilter(
