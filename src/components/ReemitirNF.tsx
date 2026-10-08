@@ -22,13 +22,21 @@ export function ReemitirNF({
     setIndo(true)
     setErro('')
     try {
-      await pb.send(`/backend/v1/reemitir-nf`, {
+      const r = await fetch(`${import.meta.env.VITE_POCKETBASE_URL}/backend/v1/reemitir-nf`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: pb.authStore.token,
+        },
         body: JSON.stringify({ colecao, id }),
       })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d?.message || `HTTP ${r.status}`)
+      }
       onOk?.()
     } catch (err) {
-      const msg = (err as { response?: { message?: string } })?.response?.message
+      const msg = (err as Error)?.message
       setErro(msg || 'Falhou — confira o endereço/CEP da empresa no cadastro.')
     } finally {
       setIndo(false)
