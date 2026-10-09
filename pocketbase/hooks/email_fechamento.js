@@ -24,7 +24,8 @@ onRecordAfterUpdateSuccess((e) => {
       }
     })()
     // se emite NF, só envia quando a nota estiver AUTORIZADA (ou erro — aí manda sem a nota)
-    if (emiteNF && !nfStatus) {
+    // SCHEDULED NÃO envia (o cliente receberia e-mail sem a nota)
+    if (emiteNF && nfStatus !== 'AUTHORIZED' && nfStatus !== 'ERROR') {
       e.next()
       return
     }
