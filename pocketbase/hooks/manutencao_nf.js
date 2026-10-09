@@ -82,20 +82,25 @@ routerAdd('POST', '/backend/v1/manutencao/nf-reemitir', (e) => {
     body = e.requestInfo().body
   } catch (_) {}
   const invoiceId = String((body && body.invoiceId) || '')
+  const diretoId = String((body && body.id) || '')
   const colecao = String((body && body.colecao) || 'fechamentos')
-  if (!invoiceId) return e.badRequestError('invoiceId obrigatorio')
+  if (!invoiceId && !diretoId) return e.badRequestError('invoiceId ou id obrigatorio')
   if (colecao !== 'fechamentos' && colecao !== 'servicos')
     return e.badRequestError('colecao invalida')
 
-  // acha o lancamento pela NF gravada nele
+  // acha o lancamento pela NF gravada nele OU pelo id direto (caso sem nota ainda)
   let rec = null
   try {
-    const lista = $app.findRecordsByFilter(colecao, 'asaas_invoice_id = {:iid}', '', 1, 0, {
-      iid: invoiceId,
-    })
-    if (lista.length > 0) rec = lista[0]
+    if (invoiceId) {
+      const lista = $app.findRecordsByFilter(colecao, 'asaas_invoice_id = {:iid}', '', 1, 0, {
+        iid: invoiceId,
+      })
+      if (lista.length > 0) rec = lista[0]
+    } else if (diretoId) {
+      rec = $app.findRecordById(colecao, diretoId)
+    }
   } catch (_) {}
-  if (!rec) return e.badRequestError('lancamento com essa NF nao encontrado')
+  if (!rec) return e.badRequestError('lancamento nao encontrado')
 
   const empresaId = rec.getString('empresa')
   let empresa = null
