@@ -38,6 +38,38 @@ routerAdd('POST', '/backend/v1/manutencao/ver', (e) => {
   return e.json(200, { total: saida.length, items: saida })
 })
 
+routerAdd('POST', '/backend/v1/manutencao/empresa-patch', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const id = String((body && body.id) || '')
+  if (!id) return e.badRequestError('id obrigatorio')
+  let empresa = null
+  try {
+    empresa = $app.findRecordById('empresas', id)
+  } catch (_) {}
+  if (!empresa) return e.badRequestError('empresa nao encontrada')
+
+  // so campos de cadastro/endereco — nada de financeiro
+  const permitidos = ['endereco', 'cep', 'email', 'responsavel_email', 'emite_nf']
+  const mudou = []
+  for (const k of permitidos) {
+    if (body && body[k] !== undefined) {
+      empresa.set(k, body[k])
+      mudou.push(k)
+    }
+  }
+  if (mudou.length === 0) return e.badRequestError('nada para atualizar')
+  $app.save(empresa)
+  console.log('[manutencao] empresa atualizada', id, mudou.join(','))
+  return e.json(200, { ok: true, mudou })
+})
+
 routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
