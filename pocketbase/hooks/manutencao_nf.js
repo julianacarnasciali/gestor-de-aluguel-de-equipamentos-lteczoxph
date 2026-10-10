@@ -125,6 +125,41 @@ routerAdd('POST', '/backend/v1/manutencao/criar-registro', (e) => {
   return e.json(200, { ok: true, id: nova.id })
 })
 
+routerAdd('POST', '/backend/v1/manutencao/registro-patch', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const id = String((body && body.id) || '')
+  if (!colecao || !id) return e.badRequestError('colecao e id obrigatorios')
+  const ok = ['empresas', 'contratos', 'equipamentos', 'leituras']
+  if (ok.indexOf(colecao) === -1) return e.badRequestError('colecao nao permitida')
+
+  let rec = null
+  try {
+    rec = $app.findRecordById(colecao, id)
+  } catch (_) {}
+  if (!rec) return e.badRequestError('registro nao encontrado')
+
+  const mudou = []
+  for (const k in body) {
+    if (k === 'colecao' || k === 'id') continue
+    try {
+      rec.set(k, body[k])
+      mudou.push(k)
+    } catch (_) {}
+  }
+  if (mudou.length === 0) return e.badRequestError('nada para atualizar')
+  $app.save(rec)
+  console.log('[manutencao] registro atualizado', colecao, id, mudou.join(','))
+  return e.json(200, { ok: true, mudou })
+})
+
 routerAdd('POST', '/backend/v1/manutencao/empresa-patch', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
