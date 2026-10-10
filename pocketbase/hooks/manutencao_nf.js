@@ -6,6 +6,64 @@
 // Sem token -> 401. Nada aqui expõe dados de clientes.
 // NOTA JSVM: toda a lógica INLINE nos callbacks (funções de topo não existem no pool).
 
+// Consulta de CNPJ na Receita (para o cadastro de empresas preencher sozinho).
+// Fonte 1: BrasilAPI (sem limite, mas instavel) -> Fonte 2: ReceitaWS (3 req/min).
+// Rota PUBLICA (sem auth): so devolve dados de cadastro publicos da Receita.
+routerAdd('GET', '/backend/v1/cnpj/{cnpj}', (e) => {
+  const cnpj = String(e.request.pathParam('cnpj') || '').replace(/\D/g, '')
+  if (cnpj.length !== 14) return e.badRequestError('CNPJ precisa ter 14 digitos')
+
+  const tentar = (url) => {
+    try {
+      const r = $http.send({ url, method: 'GET', headers: { 'User-Agent': 'LCCA-Tech/1.0' } })
+      if (r.statusCode === 200) return r.json
+      return null
+    } catch (_) {
+      return null
+    }
+  }
+
+  // 1) BrasilAPI
+  let d = tentar('https://brasilapi.com.br/api/cnpj/v1/' + cnpj)
+  if (d && d.razao_social) {
+    return e.json(200, {
+      fonte: 'brasilapi',
+      razao_social: d.razao_social || '',
+      nome_fantasia: d.nome_fantasia || '',
+      logradouro: d.logradouro || '',
+      numero: d.numero || '',
+      complemento: d.complemento || '',
+      bairro: d.bairro || '',
+      municipio: d.municipio || '',
+      uf: d.uf || '',
+      cep: String(d.cep || '').replace(/\D/g, ''),
+      telefone_1: d.ddd_telefone_1 || '',
+      email: d.email || '',
+    })
+  }
+
+  // 2) ReceitaWS
+  d = tentar('https://receitaws.com.br/v1/cnpj/' + cnpj)
+  if (d && d.nome) {
+    return e.json(200, {
+      fonte: 'receitaws',
+      razao_social: d.nome || '',
+      nome_fantasia: d.fantasia || '',
+      logradouro: d.logradouro || '',
+      numero: d.numero || '',
+      complemento: d.complemento || '',
+      bairro: d.bairro || '',
+      municipio: d.municipio || '',
+      uf: d.uf || '',
+      cep: String(d.cep || '').replace(/\D/g, ''),
+      telefone_1: d.telefone || '',
+      email: d.email || '',
+    })
+  }
+
+  return e.json(502, { erro: 'Consulta indisponivel agora — tente de novo em instantes.' })
+})
+
 routerAdd('POST', '/backend/v1/manutencao/ver', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''

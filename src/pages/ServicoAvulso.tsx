@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getEmpresas, createEmpresa, createServico, brl, type Empresa } from '@/services/gestor'
 import pb from '@/lib/pocketbase/client'
 import { ReemitirNF } from '@/components/ReemitirNF'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { gerarPdfServico } from '@/lib/pdf-servico'
+import { consultarCnpj } from '@/lib/cnpj'
 
 export default function ServicoAvulso() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
@@ -21,6 +22,10 @@ export default function ServicoAvulso() {
   const [email, setEmail] = useState('')
   const [endereco, setEndereco] = useState('')
   const [emiteNf, setEmiteNf] = useState(false)
+  // busca CNPJ na Receita (preenche nome/endereço/CEP sozinho)
+  const [cnpjBuscando, setCnpjBuscando] = useState(false)
+  const [cnpjAviso, setCnpjAviso] = useState('')
+  const ultimoCnpjBuscado = useRef('')
 
   // serviço
   const [descricao, setDescricao] = useState('')
@@ -38,6 +43,33 @@ export default function ServicoAvulso() {
   const [cepErro, setCepErro] = useState('')
   const [cep, setCep] = useState('')
   const [numeroComplemento, setNumeroComplemento] = useState('')
+
+  const buscarCnpj = async (valor: string) => {
+    const limpo = (valor || '').replace(/\D/g, '')
+    if (limpo.length !== 14) return
+    if (ultimoCnpjBuscado.current === limpo) return
+    ultimoCnpjBuscado.current = limpo
+    setCnpjBuscando(true)
+    setCnpjAviso('')
+    try {
+      const r = await consultarCnpj(limpo)
+      if (!r.ok || !r.dados) {
+        setCnpjAviso(r.erro || 'CNPJ não encontrado.')
+        ultimoCnpjBuscado.current = ''
+        return
+      }
+      setNome((n) => (n.trim() ? n : r.dados!.razao_social || n))
+      setEndereco(r.endereco || '')
+      if (r.cep) setCep(r.cep)
+      if (r.dados.email && !email.trim()) setEmail(r.dados.email)
+      if (r.avisoCep) setCnpjAviso(r.avisoCep)
+    } catch {
+      setCnpjAviso('Consulta falhou — preenche na mão.')
+      ultimoCnpjBuscado.current = ''
+    } finally {
+      setCnpjBuscando(false)
+    }
+  }
 
   const buscarCep = async (cepDigitado: string) => {
     const cepLimpo = cepDigitado.replace(/\D/g, '')
@@ -335,8 +367,23 @@ export default function ServicoAvulso() {
                 <Input value={nome} onChange={(e) => setNome(e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label>CPF/CNPJ</Label>
-                <Input value={cnpjCpf} onChange={(e) => setCnpjCpf(e.target.value)} />
+                <Label>
+                  CPF/CNPJ{' '}
+                  {cnpjBuscando && (
+                    <span className="text-xs text-teal-700">buscando na Receita…</span>
+                  )}
+                </Label>
+                <Input
+                  value={cnpjCpf}
+                  onChange={(e) => {
+                    setCnpjCpf(e.target.value)
+                    const digits = e.target.value.replace(/\D/g, '')
+                    if (digits.length === 14) buscarCnpj(digits)
+                  }}
+                  onBlur={(e) => buscarCnpj(e.target.value)}
+                  placeholder="14 dígitos — busca o endereço na Receita"
+                />
+                {cnpjAviso && <p className="text-xs text-amber-600">{cnpjAviso}</p>}
               </div>
             </div>
             <div className="space-y-1">

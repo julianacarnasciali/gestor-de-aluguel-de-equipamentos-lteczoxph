@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   getEmpresas,
   getContratos,
@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DialogEquipamentosEmpresa } from '@/components/DialogEquipamentosEmpresa'
 import { Package } from 'lucide-react'
-
+import { consultarCnpj } from '@/lib/cnpj'
 const MESES: Record<string, string> = {
   '01': 'Janeiro',
   '02': 'Fevereiro',
@@ -48,6 +48,10 @@ export default function Empresas() {
   const [cepBuscando, setCepBuscando] = useState(false)
   const [cepErro, setCepErro] = useState('')
   const [cep, setCep] = useState('')
+  // busca de CNPJ (Receita Federal) — preenche nome/endereço/CEP sozinho
+  const [cnpjBuscando, setCnpjBuscando] = useState(false)
+  const [cnpjAviso, setCnpjAviso] = useState('')
+  const ultimoCnpjBuscado = useRef('')
 
   // montagem do endereço no PADRÃO DO BANCO ASAAS (NF exige):
   // "Rua X, N, Bairro, Cidade - UF, CEP" — complemento vai no fim, separado por vírgula
@@ -69,6 +73,38 @@ export default function Empresas() {
     const partes = [rua, numero, bairro, `${cid} - ${uf}`, cepOk].filter(Boolean)
     const base = partes.join(', ')
     return complemento ? `${base}, ${complemento}` : base
+  }
+
+  // dispara quando o CNPJ completa 14 dígitos: preenche nome/endereço/CEP
+  const buscarCnpj = async (valor: string) => {
+    const limpo = (valor || '').replace(/\D/g, '')
+    if (limpo.length !== 14 || !editando) return
+    if (ultimoCnpjBuscado.current === limpo) return // evita repetir a mesma busca
+    ultimoCnpjBuscado.current = limpo
+    setCnpjBuscando(true)
+    setCnpjAviso('')
+    try {
+      const r = await consultarCnpj(limpo)
+      if (!r.ok || !r.dados) {
+        setCnpjAviso(r.erro || 'CNPJ não encontrado.')
+        ultimoCnpjBuscado.current = ''
+        return
+      }
+      // só preenche nome se estiver vazio (não sobrescreve o que ela digitou)
+      const e = editando
+      setEditando({
+        ...e,
+        nome: e.nome?.trim() ? e.nome : r.dados.razao_social || e.nome,
+        endereco: r.endereco || e.endereco,
+      })
+      if (r.cep) setCep(r.cep)
+      if (r.avisoCep) setCnpjAviso(r.avisoCep)
+    } catch {
+      setCnpjAviso('Consulta falhou — preenche na mão.')
+      ultimoCnpjBuscado.current = ''
+    } finally {
+      setCnpjBuscando(false)
+    }
   }
 
   const buscarCep = async (cepDigitado: string) => {
@@ -134,6 +170,8 @@ export default function Empresas() {
       base = [{ nome: e.responsavel_nome ?? '', setor: '', email: e.responsavel_email ?? '' }]
     }
     while (base.length < 3) base.push(contatoVazio())
+    ultimoCnpjBuscado.current = ''
+    setCnpjAviso('')
     setEditando({ ...e, contatos: base.slice(0, 3) })
     // preenche o campo CEP do form a partir do endereço salvo (se tiver)
     const mcep = (e.endereco || '').match(/(\d{5}-?\d{3})\s*,?\s*[^,]*$/)
@@ -324,6 +362,34 @@ export default function Empresas() {
                   value={editando.nome}
                   onChange={(e) => setEditando({ ...editando, nome: e.target.value })}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>
+                    CNPJ/CPF{' '}
+                    {cnpjBuscando && (
+                      <span className="text-xs text-teal-700">buscando na Receita…</span>
+                    )}
+                  </Label>
+                  <Input
+                    value={editando.cnpj_cpf}
+                    onChange={(e) => {
+                      setEditando({ ...editando, cnpj_cpf: e.target.value })
+                      const digits = e.target.value.replace(/\D/g, '')
+                      if (digits.length === 14) buscarCnpj(digits)
+                    }}
+                    onBlur={(e) => buscarCnpj(e.target.value)}
+                    placeholder="14 dígitos — busca o endereço na Receita"
+                  />
+                  {cnpjAviso && <p className="text-xs text-amber-600">{cnpjAviso}</p>}
+                </div>
+                <div className="space-y-1">
+                  <Label>Telefone</Label>
+                  <Input
+                    value={editando.telefone}
+                    onChange={(e) => setEditando({ ...editando, telefone: e.target.value })}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
