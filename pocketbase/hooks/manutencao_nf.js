@@ -96,6 +96,35 @@ routerAdd('POST', '/backend/v1/manutencao/ver', (e) => {
   return e.json(200, { total: saida.length, items: saida })
 })
 
+routerAdd('POST', '/backend/v1/manutencao/criar-registro', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const campos = (body && body.campos) || {}
+  if (!colecao || colecao === 'users') return e.badRequestError('colecao invalida')
+  if (!campos || typeof campos !== 'object') return e.badRequestError('campos obrigatorios')
+
+  // coleções permitidas (cadastro)
+  const ok = ['empresas', 'contratos', 'equipamentos', 'leituras']
+  if (ok.indexOf(colecao) === -1) return e.badRequestError('colecao nao permitida')
+
+  const nova = new Record($app.findCollectionByNameOrId(colecao))
+  for (const k in campos) {
+    try {
+      nova.set(k, campos[k])
+    } catch (_) {}
+  }
+  $app.save(nova)
+  console.log('[manutencao] registro criado', colecao, nova.id)
+  return e.json(200, { ok: true, id: nova.id })
+})
+
 routerAdd('POST', '/backend/v1/manutencao/empresa-patch', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
