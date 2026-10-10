@@ -66,7 +66,7 @@ export async function consultarCnpj(cnpjDigitado: string): Promise<ResultadoCnpj
   const base = import.meta.env.VITE_POCKETBASE_URL
   let d: DadosCnpj | null = null
   try {
-    const r = await fetch(`${base}/backend/v1/cnpj/${cnpj}`)
+    const r = await fetch(`${base}/backend/v1/cnpj?cnpj=${cnpj}`)
     if (!r.ok) {
       const j = await r.json().catch(() => null)
       return { ok: false, erro: j?.erro || 'Consulta falhou — tente de novo.' }

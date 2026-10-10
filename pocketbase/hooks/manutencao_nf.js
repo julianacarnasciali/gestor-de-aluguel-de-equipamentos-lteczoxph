@@ -9,8 +9,8 @@
 // Consulta de CNPJ na Receita (para o cadastro de empresas preencher sozinho).
 // Fonte 1: BrasilAPI (sem limite, mas instavel) -> Fonte 2: ReceitaWS (3 req/min).
 // Rota PUBLICA (sem auth): so devolve dados de cadastro publicos da Receita.
-routerAdd('GET', '/backend/v1/cnpj/{cnpj}', (e) => {
-  const cnpj = String(e.request.pathParam('cnpj') || '').replace(/\D/g, '')
+routerAdd('GET', '/backend/v1/cnpj', (e) => {
+  const cnpj = String(e.request.url.query().get('cnpj') || '').replace(/\D/g, '')
   if (cnpj.length !== 14) return e.badRequestError('CNPJ precisa ter 14 digitos')
 
   const tentar = (url) => {
