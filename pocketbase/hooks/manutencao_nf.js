@@ -192,6 +192,35 @@ routerAdd('POST', '/backend/v1/manutencao/empresa-patch', (e) => {
   return e.json(200, { ok: true, mudou })
 })
 
+routerAdd('POST', '/backend/v1/manutencao/apagar-registros', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const filtro = String((body && body.filtro) || '')
+  if (!colecao || !filtro) return e.badRequestError('colecao e filtro obrigatorios')
+  const permitidas = ['leads', 'arquivos']
+  if (permitidas.indexOf(colecao) === -1) return e.badRequestError('colecao nao permitida')
+
+  const lista = $app.findRecordsByFilter(colecao, filtro, '', 500, 0)
+  let apagados = 0
+  for (const r of lista) {
+    try {
+      $app.delete(r)
+      apagados++
+    } catch (err) {
+      console.warn('[manutencao] falha ao apagar', r.id, err)
+    }
+  }
+  console.log('[manutencao] apagados', apagados, 'de', colecao, '| filtro:', filtro)
+  return e.json(200, { ok: true, apagados })
+})
+
 routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
