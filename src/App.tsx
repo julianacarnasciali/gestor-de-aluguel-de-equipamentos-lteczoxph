@@ -23,6 +23,94 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return user ? children : <Navigate to="/login" replace />
 }
 
+// Landing na raiz: quando acessado por lccatech.com / www.lccatech.com, o app
+// inteiro mostra a landing pública — o sistema continua no endereço
+// sistema.lccatech.com (domínio ativo no painel Skip) e no goskip.app.
+const host = typeof window !== 'undefined' ? window.location.hostname : ''
+const ehDominioLanding = host === 'lccatech.com' || host === 'www.lccatech.com'
+
+const sistemaRoutes = (
+  <>
+    <Route path="/login" element={<Login />} />
+    <Route path="/lcca" element={<Lcca />} />
+    <Route element={<Layout />}>
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <Index />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/empresas"
+        element={
+          <RequireAuth>
+            <Empresas />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/leituras"
+        element={
+          <RequireAuth>
+            <Leituras />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/conta"
+        element={
+          <RequireAuth>
+            <Conta />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/fechamentos"
+        element={
+          <RequireAuth>
+            <Fechamentos />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/relatorio"
+        element={
+          <RequireAuth>
+            <DashboardRelatorio />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/agente"
+        element={
+          <RequireAuth>
+            <Agente />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/financeiro"
+        element={
+          <RequireAuth>
+            <Financeiro />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/servico-avulso"
+        element={
+          <RequireAuth>
+            <ServicoAvulso />
+          </RequireAuth>
+        }
+      />
+    </Route>
+    <Route path="*" element={<NotFound />} />
+  </>
+)
+
 const App = () => (
   <BrowserRouter>
     <AuthProvider>
@@ -30,83 +118,12 @@ const App = () => (
         <Toaster />
         <Sonner />
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/lcca" element={<Lcca />} />
-          <Route element={<Layout />}>
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <Index />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/empresas"
-              element={
-                <RequireAuth>
-                  <Empresas />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/leituras"
-              element={
-                <RequireAuth>
-                  <Leituras />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/conta"
-              element={
-                <RequireAuth>
-                  <Conta />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/fechamentos"
-              element={
-                <RequireAuth>
-                  <Fechamentos />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/relatorio"
-              element={
-                <RequireAuth>
-                  <DashboardRelatorio />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/agente"
-              element={
-                <RequireAuth>
-                  <Agente />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/financeiro"
-              element={
-                <RequireAuth>
-                  <Financeiro />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/servico-avulso"
-              element={
-                <RequireAuth>
-                  <ServicoAvulso />
-                </RequireAuth>
-              }
-            />
-          </Route>
-          <Route path="*" element={<NotFound />} />
+          {ehDominioLanding ? (
+            // lccatech.com: qualquer URL cai na landing (o sistema vive no subdomínio)
+            <Route path="*" element={<Lcca />} />
+          ) : (
+            sistemaRoutes
+          )}
         </Routes>
       </TooltipProvider>
     </AuthProvider>
