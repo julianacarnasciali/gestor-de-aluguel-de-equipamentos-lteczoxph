@@ -13,6 +13,7 @@ import DashboardRelatorio from './pages/DashboardRelatorio'
 import Agente from './pages/Agente'
 import Financeiro from './pages/Financeiro'
 import ServicoAvulso from './pages/ServicoAvulso'
+import Lcca from './pages/Lcca'
 import NotFound from './pages/NotFound'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -30,6 +31,7 @@ const App = () => (
         <Sonner />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/lcca" element={<Lcca />} />
           <Route element={<Layout />}>
             <Route
               path="/"
