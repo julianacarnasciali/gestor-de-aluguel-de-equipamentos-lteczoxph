@@ -105,7 +105,7 @@ onRecordAfterUpdateSuccess((e) => {
       // assinatura — LOGO LCCA TECH (aprovada 12/10) + contato do Luiz
       '<div style="margin-top:20px;font-family:Arial,Helvetica,sans-serif">' +
       '<div style="background:#0F2A43;color:#ffffff;padding:14px 16px;border-radius:8px 8px 0 0">' +
-      '<img src="https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev/api/files/arquivos/uzsu62yoznlmzvo/logo_full_branco_057hwekwuv.png" alt="LCCA Tech" width="150" style="display:block;border:0" />' +
+      '<img src="https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev/api/files/arquivos/ib0smsxri8sw6q2/full_branco_y8024354gz.png" alt="LCCA Tech" width="150" style="display:block;border:0" />' +
       '</div>' +
       '<div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;background:#f8fafc;padding:12px 16px">' +
       '<div style="font-size:13px;font-weight:bold;color:#0F2A43">Luiz Carlos Carnasciali</div>' +

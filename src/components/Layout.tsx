@@ -23,7 +23,7 @@ export default function Layout() {
         <div className="container mx-auto px-4 h-14 flex items-center gap-6">
           <div className="flex items-center gap-2 font-bold text-teal-700">
             <img
-              src="https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev/api/files/arquivos/ai3g281zexap7kp/logo_simbolo_x15paxzcm2.png"
+              src="https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev/api/files/arquivos/9zb90olapcv6t1f/simbolo_navy_ioukhyk01x.png"
               alt="LCCA Tech"
               className="h-8 w-8 rounded"
             />
