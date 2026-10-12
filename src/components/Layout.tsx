@@ -22,9 +22,11 @@ export default function Layout() {
       <header className="bg-white border-b shadow-sm">
         <div className="container mx-auto px-4 h-14 flex items-center gap-6">
           <div className="flex items-center gap-2 font-bold text-teal-700">
-            <span className="flex h-8 w-8 items-center justify-center rounded bg-teal-600 text-white text-xs">
-              LCA
-            </span>
+            <img
+              src="https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev/api/files/arquivos/ai3g281zexap7kp/logo_simbolo_x15paxzcm2.png"
+              alt="LCCA Tech"
+              className="h-8 w-8 rounded"
+            />
             <span className="hidden sm:inline">Gestor de Aluguel</span>
           </div>
           <nav className="flex items-center gap-1">
