@@ -431,3 +431,72 @@ routerAdd('POST', '/backend/v1/manutencao/nf-reemitir', (e) => {
   console.log('[manutencao] NFS-e reagendada', rNF.json.id, 'p/', colecao, rec.id)
   return e.json(200, { ok: true, invoice: rNF.json.id, status: rNF.json.status })
 })
+
+// Corrige telefone fixo/celular do cliente no Asaas (erro "Número de telefone
+// incorreto" = fixo no campo de celular). A chave ASAAS_API_KEY fica no cofre.
+//   POST /backend/v1/manutencao/asaas-telefone { "id": "<empresa>", "acao": "ver" | "corrigir" }
+routerAdd('POST', '/backend/v1/manutencao/asaas-telefone', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const empresaId = String((body && body.id) || '')
+  const acao = String((body && body.acao) || 'ver')
+  if (!empresaId) return e.badRequestError('id da empresa obrigatorio')
+  if (acao !== 'ver' && acao !== 'corrigir')
+    return e.badRequestError('acao invalida (ver|corrigir)')
+
+  let empresa = null
+  try {
+    empresa = $app.findRecordById('empresas', empresaId)
+  } catch (_) {}
+  if (!empresa) return e.badRequestError('empresa nao encontrada')
+
+  const customerId = String(empresa.getString('asaas_customer_id') || '')
+  if (!customerId) return e.badRequestError('empresa sem cliente no Asaas')
+
+  const apiKey = $secrets.get('ASAAS_API_KEY')
+  const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
+  const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+
+  const fone = String(empresa.getString('telefone') || '').replace(/\D/g, '')
+  const fixo = fone.length === 10 ? fone : ''
+  const cel = fone.length === 11 ? fone : ''
+
+  if (acao === 'ver') {
+    const r = $http.send({ url: base + '/customers/' + customerId, method: 'GET', headers })
+    if (r.statusCode !== 200)
+      return e.badRequestError('Asaas: ' + JSON.stringify(r.json).slice(0, 250))
+    const c = r.json
+    return e.json(200, {
+      ok: true,
+      empresa: { telefone: empresa.getString('telefone'), fixo, cel },
+      asaas: { name: c.name, email: c.email, phone: c.phone, mobilePhone: c.mobilePhone },
+    })
+  }
+
+  // corrigir: fixo -> phone, celular -> mobilePhone, o campo sem numero fica vazio
+  const corpo = {}
+  if (fixo) corpo.phone = fixo
+  if (cel) corpo.mobilePhone = cel
+  if (!fixo) corpo.phone = ''
+  if (!cel) corpo.mobilePhone = ''
+  const r2 = $http.send({
+    url: base + '/customers/' + customerId,
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(corpo),
+  })
+  if (r2.statusCode !== 200)
+    return e.badRequestError('Asaas: ' + JSON.stringify(r2.json).slice(0, 250))
+  console.log('[manutencao] telefone corrigido', empresaId, JSON.stringify(corpo))
+  return e.json(200, {
+    ok: true,
+    atualizado: corpo,
+    asaas: { phone: r2.json.phone, mobilePhone: r2.json.mobilePhone },
+  })
+})
