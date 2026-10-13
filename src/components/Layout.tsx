@@ -7,6 +7,7 @@ const links = [
   { to: '/relatorio', label: 'Relatório' },
   { to: '/empresas', label: 'Empresas' },
   { to: '/leituras', label: 'Leituras' },
+  { to: '/patrimonio', label: 'Patrimônio' },
   { to: '/fechamentos', label: 'Fechamento' },
   { to: '/financeiro', label: 'Financeiro' },
   { to: '/servico-avulso', label: 'Serviço avulso' },

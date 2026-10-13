@@ -96,6 +96,13 @@ export const updateEmpresa = (id: string, data: Partial<Empresa>) =>
 export const createEmpresa = (data: Partial<Empresa>) =>
   pb.collection('empresas').create<Empresa>(data)
 
+// ---------- Patrimônio (relação geral: patrimônio → empresa/setor/contrato) ----------
+export const getEquipamentosPatrimonio = () =>
+  pb.collection('equipamentos').getFullList<Equipamento>({
+    sort: 'patrimonio',
+    expand: 'empresa,contrato',
+  })
+
 // ---------- Contratos ----------
 export const getContratos = () =>
   pb.collection('contratos').getFullList<Contrato>({

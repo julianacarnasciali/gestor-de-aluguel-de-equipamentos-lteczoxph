@@ -15,6 +15,7 @@ import Financeiro from './pages/Financeiro'
 import ServicoAvulso from './pages/ServicoAvulso'
 import Lcca from './pages/Lcca'
 import NotFound from './pages/NotFound'
+import Patrimonio from './pages/Patrimonio'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 
@@ -103,6 +104,14 @@ const sistemaRoutes = (
         element={
           <RequireAuth>
             <ServicoAvulso />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/patrimonio"
+        element={
+          <RequireAuth>
+            <Patrimonio />
           </RequireAuth>
         }
       />
