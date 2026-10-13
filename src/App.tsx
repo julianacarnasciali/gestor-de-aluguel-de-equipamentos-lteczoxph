@@ -16,6 +16,9 @@ import ServicoAvulso from './pages/ServicoAvulso'
 import Lcca from './pages/Lcca'
 import NotFound from './pages/NotFound'
 import Patrimonio from './pages/Patrimonio'
+import ChamadoPublico from './pages/ChamadoPublico'
+import Chamados from './pages/Chamados'
+import Etiquetas from './pages/Etiquetas'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 
@@ -34,6 +37,7 @@ const sistemaRoutes = (
   <>
     <Route path="/login" element={<Login />} />
     <Route path="/lcca" element={<Lcca />} />
+    <Route path="/chamado" element={<ChamadoPublico />} />
     <Route element={<Layout />}>
       <Route
         path="/"
@@ -112,6 +116,22 @@ const sistemaRoutes = (
         element={
           <RequireAuth>
             <Patrimonio />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/chamados"
+        element={
+          <RequireAuth>
+            <Chamados />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/etiquetas"
+        element={
+          <RequireAuth>
+            <Etiquetas />
           </RequireAuth>
         }
       />

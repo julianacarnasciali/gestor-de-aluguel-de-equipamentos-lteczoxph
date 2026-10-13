@@ -8,6 +8,8 @@ const links = [
   { to: '/empresas', label: 'Empresas' },
   { to: '/leituras', label: 'Leituras' },
   { to: '/patrimonio', label: 'Patrimônio' },
+  { to: '/etiquetas', label: 'Etiquetas' },
+  { to: '/chamados', label: 'Chamados' },
   { to: '/fechamentos', label: 'Fechamento' },
   { to: '/financeiro', label: 'Financeiro' },
   { to: '/servico-avulso', label: 'Serviço avulso' },
