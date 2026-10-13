@@ -53,9 +53,11 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
   nova.set('prioridade', prioridade)
   nova.set('status', 'aberto')
 
+  // video precisa existir FORA do try (usado no e-mail depois — lição 13/10)
+  let video = null
   try {
     const files = (info && info.files) || {}
-    const video = files['video']
+    video = files['video'] || null
     if (video) nova.set('video', video)
   } catch (errF) {
     console.warn('[chamado] video nao anexado', errF)
