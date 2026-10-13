@@ -34,6 +34,11 @@ export default function ServicoAvulso() {
   const [dataVenc, setDataVenc] = useState('')
   // NF é escolha POR SERVIÇO (não automática) — pedido 08/10
   const [emitirNfServico, setEmitirNfServico] = useState(false)
+  // quando a empresa escolhida emite NF por padrão, o switch já vem LIGADO
+  // (o Luiz pode desligar na hora — a escolha dele prevalece por serviço)
+  useEffect(() => {
+    setEmitirNfServico(Boolean(selecionada?.emite_nf))
+  }, [selecionada])
 
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
