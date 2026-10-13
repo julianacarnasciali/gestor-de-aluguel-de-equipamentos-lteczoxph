@@ -137,7 +137,7 @@ routerAdd('POST', '/backend/v1/manutencao/registro-patch', (e) => {
   const colecao = String((body && body.colecao) || '')
   const id = String((body && body.id) || '')
   if (!colecao || !id) return e.badRequestError('colecao e id obrigatorios')
-  const ok = ['empresas', 'contratos', 'equipamentos', 'leituras']
+  const ok = ['empresas', 'contratos', 'equipamentos', 'leituras', 'servicos']
   if (ok.indexOf(colecao) === -1) return e.badRequestError('colecao nao permitida')
 
   let rec = null
