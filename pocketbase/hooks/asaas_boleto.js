@@ -53,18 +53,38 @@ onRecordAfterCreateSuccess((e) => {
         if (cel) corpo.mobilePhone = cel
         if (fixo) corpo.phone = fixo
         if (enderecoTxt) {
-          // formato: "Rua X, 100, Cidade - UF, CEP" (o Asaas exige endereço completo p/ NFS-e)
-          const partes = enderecoTxt.split(',').map((s) => s.trim())
-          if (partes.length >= 4) {
-            corpo.address = partes[0]
-            corpo.addressNumber = partes[1]
-            const cidadeUf = partes[2].split('-').map((s) => s.trim())
-            corpo.cityName = cidadeUf[0] || ''
-            corpo.state = cidadeUf[1] || ''
-            corpo.postalCode = partes[3].replace(/\D/g, '')
-            corpo.addressComplement = ''
-            corpo.province = ''
+          // formato do banco: "Rua, N, Bairro, Cidade - UF, CEP" (5 partes; às vezes 4)
+          // parse antigo (4 partes) metia o BAIRRO na cidade e perdia o CEP -> NF falhava
+          const partes = enderecoTxt
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+          let rua = '',
+            numero = '',
+            bairro = '',
+            cidUf = '',
+            cepP = ''
+          if (partes.length >= 5) {
+            rua = partes[0]
+            numero = partes[1]
+            bairro = partes[2]
+            cidUf = partes[3]
+            cepP = partes[4]
+          } else if (partes.length === 4) {
+            rua = partes[0]
+            numero = partes[1]
+            cidUf = partes[2]
+            cepP = partes[3]
           }
+          if (rua) corpo.address = rua
+          if (numero) corpo.addressNumber = numero
+          if (bairro) corpo.province = bairro
+          const cidadeUf = cidUf.split('-').map((s) => s.trim())
+          if (cidadeUf[0]) corpo.cityName = cidadeUf[0]
+          if (cidadeUf[1]) corpo.state = cidadeUf[1]
+          const cepLimpo = cepP.replace(/\D/g, '')
+          if (cepLimpo.length === 8) corpo.postalCode = cepLimpo
+          if (partes.length > 5) corpo.addressComplement = partes.slice(5).join(', ')
         }
         const r2 = $http.send({
           url: base + '/customers',
@@ -88,15 +108,36 @@ onRecordAfterCreateSuccess((e) => {
           if (cel) corpoUpd.mobilePhone = cel
           if (fixo) corpoUpd.phone = fixo
           if (enderecoTxt) {
-            const partes = enderecoTxt.split(',').map((s) => s.trim())
-            if (partes.length >= 4) {
-              corpoUpd.address = partes[0]
-              corpoUpd.addressNumber = partes[1]
-              const cidadeUf = partes[2].split('-').map((s) => s.trim())
-              corpoUpd.cityName = cidadeUf[0] || ''
-              corpoUpd.state = cidadeUf[1] || ''
-              corpoUpd.postalCode = partes[3].replace(/\D/g, '')
+            // mesmo parse de 5 partes do bloco de criação (bairro ≠ cidade)
+            const partes = enderecoTxt
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+            let rua = '',
+              numero = '',
+              bairro = '',
+              cidUf = '',
+              cepP = ''
+            if (partes.length >= 5) {
+              rua = partes[0]
+              numero = partes[1]
+              bairro = partes[2]
+              cidUf = partes[3]
+              cepP = partes[4]
+            } else if (partes.length === 4) {
+              rua = partes[0]
+              numero = partes[1]
+              cidUf = partes[2]
+              cepP = partes[3]
             }
+            if (rua) corpoUpd.address = rua
+            if (numero) corpoUpd.addressNumber = numero
+            if (bairro) corpoUpd.province = bairro
+            const cidadeUf = cidUf.split('-').map((s) => s.trim())
+            if (cidadeUf[0]) corpoUpd.cityName = cidadeUf[0]
+            if (cidadeUf[1]) corpoUpd.state = cidadeUf[1]
+            const cepLimpo = cepP.replace(/\D/g, '')
+            if (cepLimpo.length === 8) corpoUpd.postalCode = cepLimpo
           }
           if (Object.keys(corpoUpd).length > 0) {
             const rU = $http.send({
