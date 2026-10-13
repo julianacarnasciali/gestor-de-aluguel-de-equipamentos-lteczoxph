@@ -75,6 +75,16 @@ export default function Empresas() {
     return complemento ? `${base}, ${complemento}` : base
   }
 
+  // máscara de telefone: cel (11) → (41) 99999-9999 · fixo (10) → (41) 3015-7441
+  // fixo e celular vão para campos DIFERENTES no Asaas (phone x mobilePhone)
+  const formatarFone = (v: string) => {
+    const d = v.replace(/\D/g, '').slice(0, 11)
+    if (d.length <= 2) return d.length ? `(${d}` : ''
+    if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+  }
+
   // dispara quando o CNPJ completa 14 dígitos: preenche nome/endereço/CEP
   const buscarCnpj = async (valor: string) => {
     const limpo = (valor || '').replace(/\D/g, '')
@@ -387,8 +397,25 @@ export default function Empresas() {
                   <Label>Telefone</Label>
                   <Input
                     value={editando.telefone}
-                    onChange={(e) => setEditando({ ...editando, telefone: e.target.value })}
+                    inputMode="numeric"
+                    placeholder="(41) 99999-9999"
+                    onChange={(e) =>
+                      setEditando({ ...editando, telefone: formatarFone(e.target.value) })
+                    }
                   />
+                  {(() => {
+                    const d = (editando.telefone || '').replace(/\D/g, '')
+                    if (d.length < 10) return null
+                    if (d.length === 10)
+                      return <p className="text-xs text-sky-600">☎ Fixo detectado — ok</p>
+                    if (d.length === 11)
+                      return <p className="text-xs text-teal-700">📱 Celular detectado — ok</p>
+                    return (
+                      <p className="text-xs text-amber-600">
+                        Número estranho — confere antes de salvar
+                      </p>
+                    )
+                  })()}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

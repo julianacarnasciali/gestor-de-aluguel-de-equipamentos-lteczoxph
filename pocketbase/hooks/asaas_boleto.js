@@ -32,6 +32,10 @@ onRecordAfterCreateSuccess((e) => {
         (empresa && (empresa.getString('email') || empresa.getString('responsavel_email'))) || '',
       ) || ''
     const fone = empresa ? String(empresa.getString('telefone') || '').replace(/\D/g, '') : ''
+    // Asaas exige celular em mobilePhone (9 dígitos com DDD); fixo vai em phone.
+    // Sem a separação, telefone fixo no campo de celular = e-mail de erro do Asaas.
+    const fixo = fone.length === 10 ? fone : ''
+    const cel = fone.length === 11 ? fone : ''
     const enderecoTxt = empresa ? String(empresa.getString('endereco') || '') : ''
     const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
     let customerId = String((empresa && empresa.getString('asaas_customer_id')) || '')
@@ -46,7 +50,8 @@ onRecordAfterCreateSuccess((e) => {
         const corpo = { name: nome, externalReference: String(empresa ? empresa.id : rec.id) }
         if (doc) corpo.cpfCnpj = doc
         if (email) corpo.email = email
-        if (fone) corpo.mobilePhone = fone
+        if (cel) corpo.mobilePhone = cel
+        if (fixo) corpo.phone = fixo
         if (enderecoTxt) {
           // formato: "Rua X, 100, Cidade - UF, CEP" (o Asaas exige endereço completo p/ NFS-e)
           const partes = enderecoTxt.split(',').map((s) => s.trim())
@@ -80,6 +85,8 @@ onRecordAfterCreateSuccess((e) => {
         try {
           const corpoUpd = {}
           if (email) corpoUpd.email = email
+          if (cel) corpoUpd.mobilePhone = cel
+          if (fixo) corpoUpd.phone = fixo
           if (enderecoTxt) {
             const partes = enderecoTxt.split(',').map((s) => s.trim())
             if (partes.length >= 4) {
