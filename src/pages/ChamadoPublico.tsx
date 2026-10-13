@@ -24,9 +24,10 @@ export default function ChamadoPublico() {
       setErro('Etiqueta inválida — escaneie o QR code colado no equipamento.')
       return
     }
-    pb.collection('equipamentos')
-      .getOne<Equipamento>(eqId)
-      .then(setEq)
+    // visitantes não leem a coleção (viewRule logada) — rota pública MÍNIMA
+    fetch(`${import.meta.env.VITE_POCKETBASE_URL}/backend/v1/chamado-info?eq=${eqId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setEq({ ...d, id: eqId } as unknown as Equipamento))
       .catch(() => setErro('Equipamento não encontrado — confira a etiqueta.'))
   }, [eqId])
 

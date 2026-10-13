@@ -163,3 +163,26 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
 
   return e.json(200, { ok: true, id: nova.id, prioridade: prioridade })
 })
+
+// Info pública MÍNIMA do equipamento (só o que o cliente vê na etiqueta):
+//   GET /backend/v1/chamado-info?eq=<id> -> { patrimonio, setor, empresa }
+// O cadastro completo continua só logado (viewRule intacta).
+routerAdd('GET', '/backend/v1/chamado-info', (e) => {
+  const eqId = String(e.request.url.query().get('eq') || '')
+  if (!eqId) return e.badRequestError('eq obrigatorio')
+  let eq = null
+  try {
+    eq = $app.findRecordById('equipamentos', eqId)
+  } catch (_) {}
+  if (!eq) return e.badRequestError('equipamento nao encontrado')
+  let nomeEmp = ''
+  try {
+    const emp = $app.findRecordById('empresas', String(eq.getString('empresa') || ''))
+    if (emp) nomeEmp = emp.getString('nome')
+  } catch (_) {}
+  return e.json(200, {
+    patrimonio: String(eq.getString('patrimonio') || ''),
+    setor: String(eq.getString('setor') || ''),
+    empresa: nomeEmp,
+  })
+})
