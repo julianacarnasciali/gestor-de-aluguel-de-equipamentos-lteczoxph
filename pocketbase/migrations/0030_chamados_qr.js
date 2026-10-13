@@ -9,6 +9,9 @@ migrate(
       app.findCollectionByNameOrId('chamados')
       return
     } catch (_) {}
+    // relation exige o collectionId REAL das coleções já existentes
+    const idEquip = app.findCollectionByNameOrId('equipamentos').id
+    const idEmpresas = app.findCollectionByNameOrId('empresas').id
     app.save(
       new Collection({
         name: 'chamados',
@@ -19,8 +22,8 @@ migrate(
         updateRule: "@request.auth.id != ''",
         deleteRule: "@request.auth.id != ''",
         fields: [
-          { name: 'equipamento', type: 'relation', collectionId: 'equipamentos', maxSelect: 1 },
-          { name: 'empresa', type: 'relation', collectionId: 'empresas', maxSelect: 1 },
+          { name: 'equipamento', type: 'relation', collectionId: idEquip, maxSelect: 1 },
+          { name: 'empresa', type: 'relation', collectionId: idEmpresas, maxSelect: 1 },
           { name: 'setor', type: 'text', max: 120 },
           { name: 'patrimonio', type: 'text', max: 60 },
           { name: 'contato', type: 'text', max: 120 },
