@@ -31,19 +31,19 @@ function Etiqueta({ eq }: { eq: Equipamento }) {
   return (
     <div
       className="etiqueta bg-white flex items-center justify-between overflow-hidden"
-      style={{ width: '100mm', height: '40mm', padding: '2mm 4mm', color: '#000' }}
+      style={{ width: '100mm', height: '40mm', padding: '2mm 7mm', color: '#000' }}
     >
-      {/* coluna de texto — layout do print dela, tudo PRETO PURO */}
-      <div className="flex flex-col justify-center" style={{ lineHeight: 1.15, color: '#000' }}>
-        <div className="font-bold" style={{ fontSize: 28, color: '#000' }}>
+      {/* coluna de texto — mais central (padding 7mm) e fontes MAIORES */}
+      <div className="flex flex-col justify-center" style={{ lineHeight: 1.12, color: '#000' }}>
+        <div className="font-bold" style={{ fontSize: 30, color: '#000' }}>
           Problema?
         </div>
-        <div style={{ fontSize: 16, color: '#000' }}>
+        <div style={{ fontSize: 17, color: '#000' }}>
           Escaneie e abra o
           <br />
           chamado técnico
         </div>
-        <div className="font-bold" style={{ fontSize: 23, marginTop: 2, color: '#000' }}>
+        <div className="font-bold" style={{ fontSize: 25, marginTop: 2, color: '#000' }}>
           LCCA Tech
         </div>
       </div>
@@ -52,7 +52,7 @@ function Etiqueta({ eq }: { eq: Equipamento }) {
         {qr && (
           <img src={qr} alt={`QR ${eq.patrimonio}`} style={{ width: '22mm', height: '22mm' }} />
         )}
-        <div className="font-mono font-bold" style={{ fontSize: 14, marginTop: 1, color: '#000' }}>
+        <div className="font-mono font-bold" style={{ fontSize: 15, marginTop: 1, color: '#000' }}>
           {eq.patrimonio || '—'}
         </div>
       </div>
