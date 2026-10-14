@@ -22,6 +22,7 @@ interface Chamado {
   contato: string
   descricao: string
   video: string
+  foto: string
   prioridade: 'baixa' | 'media' | 'alta' | 'urgente'
   status: 'aberto' | 'em_atendimento' | 'resolvido'
   resolucao: string
@@ -144,7 +145,11 @@ export default function Chamados() {
                     <TableCell className="font-mono text-teal-700">{c.patrimonio || '—'}</TableCell>
                     <TableCell>{c.setor || '—'}</TableCell>
                     <TableCell className="max-w-64 truncate">{c.descricao}</TableCell>
-                    <TableCell>{c.video ? '🎥' : '—'}</TableCell>
+                    <TableCell>
+                      {c.video ? '🎥' : ''}
+                      {c.foto ? '📷' : ''}
+                      {!c.video && !c.foto ? '—' : ''}
+                    </TableCell>
                     <TableCell>{STATUS_LABEL[c.status]}</TableCell>
                   </TableRow>
                 ))}
@@ -189,6 +194,19 @@ export default function Chamados() {
                   <div className="text-xs text-muted-foreground mb-1">Defeito relatado:</div>
                   {detalhe.descricao}
                 </div>
+                {detalhe.foto && (
+                  <a
+                    href={`${pb.baseUrl}/api/files/chamados/${detalhe.id}/${detalhe.foto}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img
+                      className="w-full rounded-md border"
+                      src={`${pb.baseUrl}/api/files/chamados/${detalhe.id}/${detalhe.foto}`}
+                      alt="Foto do problema"
+                    />
+                  </a>
+                )}
                 {detalhe.video && (
                   <video
                     controls

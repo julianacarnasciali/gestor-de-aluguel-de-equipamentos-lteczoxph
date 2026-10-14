@@ -16,6 +16,7 @@ export default function ChamadoPublico() {
   const [contato, setContato] = useState('')
   const [descricao, setDescricao] = useState('')
   const [video, setVideo] = useState<File | null>(null)
+  const [foto, setFoto] = useState<File | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [feito, setFeito] = useState<string | null>(null)
 
@@ -44,6 +45,7 @@ export default function ChamadoPublico() {
       fd.append('contato', contato)
       fd.append('descricao', descricao)
       if (video) fd.append('video', video)
+      if (foto) fd.append('foto', foto)
       const r = await fetch(`${import.meta.env.VITE_POCKETBASE_URL}/backend/v1/chamado`, {
         method: 'POST',
         body: fd,
@@ -128,6 +130,20 @@ export default function ChamadoPublico() {
               onChange={(e) => setDescricao(e.target.value)}
               placeholder="Ex.: papel travando ao imprimir, ruído estranho na parte de trás…"
             />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Foto do problema (opcional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Ex.: foto da página impressa com a cor errada — máx. 10 MB.
+            </p>
           </div>
 
           <div className="space-y-1">

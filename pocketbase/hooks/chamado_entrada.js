@@ -59,8 +59,10 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
     const files = (info && info.files) || {}
     video = files['video'] || null
     if (video) nova.set('video', video)
+    const foto = files['foto'] || null
+    if (foto) nova.set('foto', foto)
   } catch (errF) {
-    console.warn('[chamado] video nao anexado', errF)
+    console.warn('[chamado] midia nao anexada', errF)
   }
 
   $app.save(nova)
@@ -88,9 +90,14 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')
-      const corVideo = video
-        ? '<p style="color:#0D9488">🎥 <b>Vídeo anexado</b> — baixe no painel (Chamados) para ver o defeito.</p>'
-        : '<p style="color:#94a3b8">Sem vídeo anexado.</p>'
+      const corVideo =
+        video && foto
+          ? '<p style="color:#0D9488">🎥 Vídeo + 📷 foto anexados — veja no painel (Chamados).</p>'
+          : video
+            ? '<p style="color:#0D9488">🎥 <b>Vídeo anexado</b> — veja no painel (Chamados).</p>'
+            : foto
+              ? '<p style="color:#0D9488">📷 <b>Foto anexada</b> — veja no painel (Chamados).</p>'
+              : '<p style="color:#94a3b8">Sem foto/vídeo anexado.</p>'
       const html =
         '<div style="max-width:640px;font-family:Arial">' +
         '<div style="background:#0F2A43;padding:14px 20px;border-radius:8px 8px 0 0">' +
