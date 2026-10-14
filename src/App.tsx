@@ -19,6 +19,7 @@ import Patrimonio from './pages/Patrimonio'
 import ChamadoPublico from './pages/ChamadoPublico'
 import Chamados from './pages/Chamados'
 import Etiquetas from './pages/Etiquetas'
+import LeituraPublica from './pages/LeituraPublica'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 
@@ -38,6 +39,7 @@ const sistemaRoutes = (
     <Route path="/login" element={<Login />} />
     <Route path="/lcca" element={<Lcca />} />
     <Route path="/chamado" element={<ChamadoPublico />} />
+    <Route path="/leitura" element={<LeituraPublica />} />
     <Route element={<Layout />}>
       <Route
         path="/"

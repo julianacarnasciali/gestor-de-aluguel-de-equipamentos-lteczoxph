@@ -170,6 +170,13 @@ export default function ChamadoPublico() {
           >
             {enviando ? 'Enviando…' : 'Abrir chamado'}
           </Button>
+
+          <p className="text-xs text-muted-foreground text-center">
+            Só precisa registrar o contador do mês?{' '}
+            <a className="text-teal-700 underline" href={`/leitura?eq=${eqId}`}>
+              Registrar leitura
+            </a>
+          </p>
         </CardContent>
       </Card>
     </div>

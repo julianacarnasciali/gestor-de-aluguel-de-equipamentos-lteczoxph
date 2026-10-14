@@ -193,3 +193,84 @@ routerAdd('GET', '/backend/v1/chamado-info', (e) => {
     empresa: nomeEmp,
   })
 })
+
+// Leitura pelo celular (2ª frente, pedido 14/10): o QR da etiqueta leva à
+// página /leitura?eq=<id> → digita o contador do visor → grava a leitura do
+// mês direto no sistema (pronta para o fechamento). Foto do visor opcional.
+//   POST /backend/v1/leitura  (multipart aceito: campo "arquivo" = foto do visor)
+//   { equipamento, leitura_atual }
+routerAdd('POST', '/backend/v1/leitura', (e) => {
+  const info = e.requestInfo()
+  const body = (info && info.body) || {}
+  const eqId = String(body.equipamento || '')
+  const atual = Number(body.leitura_atual)
+  if (!eqId || !Number.isFinite(atual) || atual < 0) {
+    return e.badRequestError('equipamento e leitura_atual obrigatorios')
+  }
+  let eq = null
+  try {
+    eq = $app.findRecordById('equipamentos', eqId)
+  } catch (_) {}
+  if (!eq) return e.badRequestError('equipamento nao encontrado')
+
+  // competência atual em horário de Brasília (JSVM roda em UTC — menos 3h)
+  const d = new Date(Date.now() - 3 * 3600 * 1000)
+  const competencia = String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + d.getUTCFullYear()
+
+  // última leitura lançada = leitura_anterior (de qualquer competência)
+  let ultima = null
+  try {
+    ultima = $app.findFirstRecordByFilter('leituras', 'equipamento = {:eq}', '-created', {
+      eq: eqId,
+    })
+  } catch (_) {}
+  const anterior = ultima ? Number(ultima.getInt('leitura_atual')) || 0 : 0
+  if (atual < anterior) {
+    return e.badRequestError(
+      'leitura ' + atual + ' menor que a anterior (' + anterior + ') — confira o visor',
+    )
+  }
+  const paginas = atual - anterior
+
+  // mesma competência = re-lançamento (atualiza); senão cria nova
+  let rec = null
+  if (ultima && ultima.getString('competencia') === competencia) {
+    rec = ultima
+  } else {
+    rec = new Record($app.findCollectionByNameOrId('leituras'))
+    rec.set('equipamento', eqId)
+    rec.set('contrato', String(eq.getString('contrato') || ''))
+    rec.set('competencia', competencia)
+    rec.set('leitura_anterior', anterior)
+    rec.set('origem', 'contador')
+  }
+  rec.set('leitura_atual', atual)
+  rec.set('paginas_mes', paginas)
+
+  try {
+    const files = (info && info.files) || {}
+    const foto = files['arquivo'] || null
+    if (foto) rec.set('arquivo', foto)
+  } catch (errF) {
+    console.warn('[leitura] foto do visor nao anexada', errF)
+  }
+
+  $app.save(rec)
+  console.log(
+    '[leitura] registrada via celular:',
+    String(eq.getString('patrimonio') || ''),
+    competencia,
+    anterior,
+    '->',
+    atual,
+    '(' + paginas + ' págs)',
+  )
+  return e.json(200, {
+    ok: true,
+    id: rec.id,
+    competencia: competencia,
+    leitura_anterior: anterior,
+    leitura_atual: atual,
+    paginas_mes: paginas,
+  })
+})
