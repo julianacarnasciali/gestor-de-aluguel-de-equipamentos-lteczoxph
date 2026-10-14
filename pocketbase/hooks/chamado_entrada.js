@@ -218,11 +218,18 @@ routerAdd('POST', '/backend/v1/leitura', (e) => {
   const competencia = String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + d.getUTCFullYear()
 
   // última leitura lançada = leitura_anterior (de qualquer competência)
-  // NOTA: filtro com parâmetros {:eq} falhou no JSVM (unicidade violada) —
-  // usar interpolação segura (o id vem do banco, não do usuário)
+  // NOTA JSVM: findFirstRecordByFilter falhou silenciosamente (unicidade
+  // violada) — findRecordsByFilter é a forma comprovada no projeto
   let ultima = null
   try {
-    ultima = $app.findFirstRecordByFilter('leituras', "equipamento = '" + eqId + "'", '-created')
+    const ultimas = $app.findRecordsByFilter(
+      'leituras',
+      "equipamento = '" + eqId + "'",
+      '-created',
+      1,
+      0,
+    )
+    if (ultimas.length > 0) ultima = ultimas[0]
   } catch (_) {}
   const anterior = ultima ? Number(ultima.getInt('leitura_atual')) || 0 : 0
   if (atual < anterior) {
