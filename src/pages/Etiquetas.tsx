@@ -80,7 +80,7 @@ export default function Etiquetas() {
     const style = document.createElement('style')
     style.id = 'etiqueta-page'
     style.textContent =
-      '@media print { @page { size: 100mm 40mm; margin: 0; } body { margin: 0; } .etiqueta { page-break-after: always; } }'
+      '@media print { @page { size: 100mm 40mm; margin: 0; } body { margin: 0; } .etiqueta { page-break-after: auto; } .etiqueta + .etiqueta { page-break-before: always; } }'
     document.head.appendChild(style)
     return () => {
       style.remove()
