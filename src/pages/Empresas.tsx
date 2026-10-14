@@ -213,11 +213,7 @@ export default function Empresas() {
   }
 
   const abrirEdicao = (e: Empresa) => abrirForm(e)
-  const abrirNovo = () => {
-    const nova = empresaNova()
-    abrirForm(nova)
-    setEditando(nova)
-  }
+  const abrirNovo = () => abrirForm(empresaNova())
   const ehNovo = !editando?.id
 
   const alternarNota = async (e: Empresa, valor: boolean) => {
