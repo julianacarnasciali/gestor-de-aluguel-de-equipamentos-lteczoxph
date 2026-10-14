@@ -12,21 +12,90 @@ import QRCode from 'qrcode'
 // 4) PRETO 100% em tudo (térmica não tem cor — teal saía cinza)
 // 5) busca por patrimônio normalizada (ignora espaços/maiúsculas) e mostra matches
 // 6) escopo empresa: enquanto não escolher, mostra NADA (não todas)
+// 14/10 11h45 (pedido dela): QR SEPARADO só para leitura — 3 modos:
+//    chamado (como era) · leitura (só contador) · ambos (2 QRs na mesma etiqueta)
 const URL_BASE = typeof window !== 'undefined' ? window.location.origin : ''
 
 const normalizar = (s: string) => (s || '').toLowerCase().replace(/\s+/g, '')
 
-function Etiqueta({ eq }: { eq: Equipamento }) {
+type Modo = 'chamado' | 'leitura' | 'ambos'
+
+function useQr(url: string, lado = 320) {
   const [qr, setQr] = useState('')
   useEffect(() => {
-    QRCode.toDataURL(`${URL_BASE}/chamado?eq=${eq.id}`, {
+    QRCode.toDataURL(url, {
       margin: 0,
-      width: 320,
+      width: lado,
       color: { dark: '#000000', light: '#ffffff' },
     })
       .then(setQr)
       .catch(() => setQr(''))
-  }, [eq.id])
+  }, [url, lado])
+  return qr
+}
+
+// QR + legendinha em cima (LEITURA / CHAMADO) — para o modo "ambos"
+function QrBloco({ url, legenda, ladoMm }: { url: string; legenda: string; ladoMm: number }) {
+  const qr = useQr(url, 300)
+  return (
+    <div className="flex flex-col items-center" style={{ color: '#000' }}>
+      <div className="font-bold" style={{ fontSize: 11, letterSpacing: 0.5, color: '#000' }}>
+        {legenda}
+      </div>
+      {qr && (
+        <img
+          src={qr}
+          alt={`QR ${legenda}`}
+          style={{ width: `${ladoMm}mm`, height: `${ladoMm}mm` }}
+        />
+      )}
+    </div>
+  )
+}
+
+function Etiqueta({ eq, modo }: { eq: Equipamento; modo: Modo }) {
+  const qrChamado = useQr(`${URL_BASE}/chamado?eq=${eq.id}`, 320)
+  const qrLeitura = useQr(`${URL_BASE}/leitura?eq=${eq.id}`, 320)
+
+  if (modo === 'ambos') {
+    // duas colunas de QR à direita, texto à esquerda, patrimônio embaixo dos QRs
+    return (
+      <div
+        className="etiqueta bg-white flex items-center justify-between overflow-hidden"
+        style={{ width: '100mm', height: '40mm', padding: '2mm 6mm', color: '#000' }}
+      >
+        <div className="flex flex-col justify-center" style={{ lineHeight: 1.1, color: '#000' }}>
+          <div className="font-bold" style={{ fontSize: 24, color: '#000' }}>
+            Problema?
+          </div>
+          <div style={{ fontSize: 13, color: '#000' }}>
+            Escaneie e abra o
+            <br />
+            chamado técnico
+          </div>
+          <div className="font-bold" style={{ fontSize: 20, marginTop: 2, color: '#000' }}>
+            LCCA Tech
+          </div>
+        </div>
+        <div className="flex flex-col items-center" style={{ color: '#000' }}>
+          <div className="flex items-start" style={{ gap: '4mm' }}>
+            <QrBloco url={`${URL_BASE}/leitura?eq=${eq.id}`} legenda="LEITURA" ladoMm={21} />
+            <QrBloco url={`${URL_BASE}/chamado?eq=${eq.id}`} legenda="CHAMADO" ladoMm={21} />
+          </div>
+          <div
+            className="font-mono font-bold"
+            style={{ fontSize: 14, marginTop: 1, color: '#000' }}
+          >
+            {eq.patrimonio || '—'}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const url =
+    modo === 'leitura' ? `${URL_BASE}/leitura?eq=${eq.id}` : `${URL_BASE}/chamado?eq=${eq.id}`
+  const qr = modo === 'leitura' ? qrLeitura : qrChamado
 
   return (
     <div
@@ -35,17 +104,35 @@ function Etiqueta({ eq }: { eq: Equipamento }) {
     >
       {/* coluna de texto — mais central (padding 7mm) e fontes MAIORES */}
       <div className="flex flex-col justify-center" style={{ lineHeight: 1.12, color: '#000' }}>
-        <div className="font-bold" style={{ fontSize: 30, color: '#000' }}>
-          Problema?
-        </div>
-        <div style={{ fontSize: 17, color: '#000' }}>
-          Escaneie e abra o
-          <br />
-          chamado técnico
-        </div>
-        <div className="font-bold" style={{ fontSize: 25, marginTop: 2, color: '#000' }}>
-          LCCA Tech
-        </div>
+        {modo === 'leitura' ? (
+          <>
+            <div className="font-bold" style={{ fontSize: 30, color: '#000' }}>
+              Leitura do mês?
+            </div>
+            <div style={{ fontSize: 17, color: '#000' }}>
+              Escaneie e registre
+              <br />
+              o contador
+            </div>
+            <div className="font-bold" style={{ fontSize: 25, marginTop: 2, color: '#000' }}>
+              LCCA Tech
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="font-bold" style={{ fontSize: 30, color: '#000' }}>
+              Problema?
+            </div>
+            <div style={{ fontSize: 17, color: '#000' }}>
+              Escaneie e abra o
+              <br />
+              chamado técnico
+            </div>
+            <div className="font-bold" style={{ fontSize: 25, marginTop: 2, color: '#000' }}>
+              LCCA Tech
+            </div>
+          </>
+        )}
       </div>
       {/* QR à direita + patrimônio LEGÍVEL embaixo */}
       <div className="flex flex-col items-center justify-center">
@@ -68,6 +155,7 @@ export default function Etiquetas() {
   const [escopo, setEscopo] = useState<Escopo>('uma')
   const [empresaSel, setEmpresaSel] = useState('')
   const [patrimonioBusca, setPatrimonioBusca] = useState('')
+  const [modo, setModo] = useState<Modo>('chamado')
 
   useEffect(() => {
     getEquipamentosPatrimonio()
@@ -113,13 +201,19 @@ export default function Etiquetas() {
 
   const imprimir = () => window.print()
 
+  const rotuloModo: Record<Modo, string> = {
+    chamado: 'QR abre o chamado técnico',
+    leitura: 'QR abre a leitura do contador',
+    ambos: '2 QRs: leitura + chamado',
+  }
+
   return (
     <div className="container mx-auto py-8 px-4 print:p-0 print:m-0">
       <div className="mb-6 space-y-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold">Etiquetas de patrimônio</h1>
           <p className="text-sm text-muted-foreground">
-            {lista.length} etiqueta(s) · 100×40 mm · preto 100% · QR abre o chamado técnico
+            {lista.length} etiqueta(s) · 100×40 mm · preto 100% · {rotuloModo[modo]}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -178,6 +272,33 @@ export default function Etiquetas() {
             Imprimir {lista.length > 0 ? `(${lista.length})` : ''}
           </Button>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-muted-foreground">Modelo:</span>
+          <Button
+            size="sm"
+            variant={modo === 'chamado' ? 'default' : 'outline'}
+            className={modo === 'chamado' ? 'bg-teal-600 hover:bg-teal-700' : ''}
+            onClick={() => setModo('chamado')}
+          >
+            Chamado
+          </Button>
+          <Button
+            size="sm"
+            variant={modo === 'leitura' ? 'default' : 'outline'}
+            className={modo === 'leitura' ? 'bg-teal-600 hover:bg-teal-700' : ''}
+            onClick={() => setModo('leitura')}
+          >
+            Leitura
+          </Button>
+          <Button
+            size="sm"
+            variant={modo === 'ambos' ? 'default' : 'outline'}
+            className={modo === 'ambos' ? 'bg-teal-600 hover:bg-teal-700' : ''}
+            onClick={() => setModo('ambos')}
+          >
+            Ambos (2 QRs)
+          </Button>
+        </div>
       </div>
 
       {carregando ? (
@@ -185,7 +306,7 @@ export default function Etiquetas() {
       ) : (
         <div className="flex flex-col gap-3 print:gap-0">
           {lista.map((e) => (
-            <Etiqueta key={e.id} eq={e} />
+            <Etiqueta key={e.id} eq={e} modo={modo} />
           ))}
           {lista.length === 0 && (
             <p className="text-muted-foreground">
