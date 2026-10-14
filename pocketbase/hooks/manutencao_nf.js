@@ -204,7 +204,7 @@ routerAdd('POST', '/backend/v1/manutencao/apagar-registros', (e) => {
   const colecao = String((body && body.colecao) || '')
   const filtro = String((body && body.filtro) || '')
   if (!colecao || !filtro) return e.badRequestError('colecao e filtro obrigatorios')
-  const permitidas = ['leads', 'arquivos', 'chamados']
+  const permitidas = ['leads', 'arquivos', 'chamados', 'empresas']
   if (permitidas.indexOf(colecao) === -1) return e.badRequestError('colecao nao permitida')
 
   const lista = $app.findRecordsByFilter(colecao, filtro, '', 500, 0)
