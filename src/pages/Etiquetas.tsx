@@ -1,91 +1,64 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getEquipamentosPatrimonio, type Equipamento } from '@/services/gestor'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import QRCode from 'qrcode'
 
-// Etiquetas de patrimônio com QR (pedido 13/10; layout refeito 14/10 — ela
-// pediu 60×40 distribuído + frase de chamada MAIOR e em NEGRITO).
-// Bobinas reais: 100×40 e 60×40 mm (Elgin L42 Pro Full). O tamanho da página
-// de impressão (@page) acompanha a bobina escolhida — sai 1 etiqueta por corte.
+// Etiquetas de patrimônio com QR (pedido 13-14/10).
+// LAYOUT 100×40 = o print APROVADO dela (14/10): "Problema?" 28px bold,
+// "Escaneie e abra o chamado técnico" 16px, "LCCA Tech" 23px, patrimônio 10px
+// embaixo do QR — SEM setor/empresa cliente (ela tirou de propósito).
+// Saída de impressão: @page exatamente 100mm×40mm (Elgin L42 Pro Full).
 const URL_BASE = typeof window !== 'undefined' ? window.location.origin : ''
 
-const TAMANHOS: Record<
-  string,
-  {
-    w: number
-    h: number
-    qrMm: number
-    pat: number
-    emp: number
-    setor: number
-    frase: number
-    marca: number
-  }
-> = {
-  // tamanhos de fonte em px (Chrome não respeita <9px — mínimo prático)
-  '100x40': { w: 100, h: 40, qrMm: 22, pat: 18, emp: 9, setor: 8, frase: 11, marca: 8 },
-  '60x40': { w: 60, h: 40, qrMm: 20, pat: 14, emp: 9, setor: 8, frase: 9.5, marca: 7 },
-}
-
-function Etiqueta({ eq, tamanho }: { eq: Equipamento; tamanho: string }) {
+function Etiqueta({ eq }: { eq: Equipamento }) {
   const [qr, setQr] = useState('')
   useEffect(() => {
     QRCode.toDataURL(`${URL_BASE}/chamado?eq=${eq.id}`, { margin: 0, width: 320 })
       .then(setQr)
       .catch(() => setQr(''))
   }, [eq.id])
-  const t = TAMANHOS[tamanho] ?? TAMANHOS['60x40']
 
   return (
     <div
-      className="etiqueta bg-white border-2 border-slate-900 flex flex-col overflow-hidden"
-      style={{ width: `${t.w}mm`, height: `${t.h}mm` }}
+      className="etiqueta bg-white flex items-center justify-between overflow-hidden"
+      style={{ width: '100mm', height: '40mm', padding: '2mm 3mm' }}
     >
-      <div className="flex-1 flex items-stretch gap-1 px-1.5 pt-1 pb-0.5 min-h-0">
-        {/* coluna de texto */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-          <div className="font-bold text-slate-900 leading-none" style={{ fontSize: t.marca }}>
-            LCCA TECH
-          </div>
-          <div
-            className="font-mono font-bold text-slate-900 leading-none"
-            style={{ fontSize: t.pat }}
-          >
-            {eq.patrimonio || '—'}
-          </div>
-          <div className="text-slate-800 leading-tight" style={{ fontSize: t.emp }}>
-            {eq.expand?.empresa?.nome || ''}
-          </div>
-          {eq.setor && (
-            <div className="text-slate-600 leading-tight truncate" style={{ fontSize: t.setor }}>
-              {eq.setor}
-            </div>
-          )}
+      {/* coluna de texto — fontes do print dela */}
+      <div className="flex flex-col justify-center" style={{ lineHeight: 1.15 }}>
+        <div className="font-bold text-slate-900" style={{ fontSize: 28 }}>
+          Problema?
         </div>
-        {/* QR — tamanho fixo em mm p/ escanear de perto */}
-        {qr && (
-          <img
-            src={qr}
-            alt={`QR ${eq.patrimonio}`}
-            style={{ width: `${t.qrMm}mm`, height: `${t.qrMm}mm` }}
-            className="self-center"
-          />
-        )}
+        <div className="text-slate-900" style={{ fontSize: 16 }}>
+          Escaneie e abra o
+          <br />
+          chamado técnico
+        </div>
+        <div className="font-bold text-slate-900" style={{ fontSize: 23, marginTop: 2 }}>
+          LCCA Tech
+        </div>
       </div>
-      {/* faixa de chamada — o pedido dela: frase GRANDE e em NEGRITO */}
-      <div className="bg-teal-600 text-white font-bold text-center uppercase leading-none py-1">
-        <span style={{ fontSize: t.frase }}>Problema? Escaneie o QR</span>
+      {/* QR + patrimônio embaixo */}
+      <div className="flex flex-col items-center justify-center">
+        {qr && (
+          <img src={qr} alt={`QR ${eq.patrimonio}`} style={{ width: '22mm', height: '22mm' }} />
+        )}
+        <div className="font-mono text-slate-900" style={{ fontSize: 10, marginTop: 1 }}>
+          {eq.patrimonio || '—'}
+        </div>
       </div>
     </div>
   )
 }
 
+type Escopo = 'todas' | 'empresa' | 'uma'
+
 export default function Etiquetas() {
   const [eqs, setEqs] = useState<Equipamento[]>([])
-  const [busca, setBusca] = useState('')
-  const [tamanho, setTamanho] = useState<'100x40' | '60x40'>('60x40')
   const [carregando, setCarregando] = useState(true)
+  const [escopo, setEscopo] = useState<Escopo>('todas')
+  const [empresaSel, setEmpresaSel] = useState('')
+  const [patrimonioBusca, setPatrimonioBusca] = useState('')
 
   useEffect(() => {
     getEquipamentosPatrimonio()
@@ -93,63 +66,102 @@ export default function Etiquetas() {
       .finally(() => setCarregando(false))
   }, [])
 
-  // @page do tamanho da bobina — a impressão térmica sai fiel (1 etiqueta/corte)
+  // @page EXATAMENTE do tamanho da etiqueta — sai 1 etiqueta por corte na térmica
   useEffect(() => {
-    const t = TAMANHOS[tamanho]
     const style = document.createElement('style')
     style.id = 'etiqueta-page'
-    style.textContent = `@media print { @page { size: ${t.w}mm ${t.h}mm; margin: 0; } body { margin: 0; } }`
+    style.textContent =
+      '@media print { @page { size: 100mm 40mm; margin: 0; } body { margin: 0; } .etiqueta { page-break-after: always; } }'
     document.head.appendChild(style)
     return () => {
       style.remove()
     }
-  }, [tamanho])
+  }, [])
 
-  const lista = eqs.filter((e) => {
-    const q = busca.trim().toLowerCase()
-    if (!q) return true
-    return [e.patrimonio, e.setor, e.expand?.empresa?.nome ?? '']
-      .join(' ')
-      .toLowerCase()
-      .includes(q)
-  })
+  const empresas = useMemo(() => {
+    const mapa = new Map<string, string>()
+    for (const e of eqs) {
+      const nome = e.expand?.empresa?.nome
+      if (nome) mapa.set(e.empresa, nome)
+    }
+    return [...mapa.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
+  }, [eqs])
+
+  const lista = useMemo(() => {
+    if (escopo === 'empresa' && empresaSel) return eqs.filter((e) => e.empresa === empresaSel)
+    if (escopo === 'uma') {
+      const q = patrimonioBusca.trim().toLowerCase()
+      if (!q) return []
+      return eqs.filter((e) => (e.patrimonio || '').toLowerCase().includes(q)).slice(0, 1)
+    }
+    return eqs
+  }, [eqs, escopo, empresaSel, patrimonioBusca])
 
   const imprimir = () => window.print()
 
   return (
     <div className="container mx-auto py-8 px-4 print:p-0 print:m-0">
-      <div className="mb-6 flex items-center justify-between flex-wrap gap-3 print:hidden">
+      <div className="mb-6 space-y-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold">Etiquetas de patrimônio</h1>
           <p className="text-sm text-muted-foreground">
-            {lista.length} etiquetas · QR abre o chamado técnico · bobinas 100×40 e 60×40 mm
+            {lista.length} etiqueta(s) · 100×40 mm · QR abre o chamado técnico
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Input
-            className="w-64"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Filtrar por empresa ou patrimônio…"
-          />
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
-            variant={tamanho === '60x40' ? 'default' : 'outline'}
-            className={tamanho === '60x40' ? 'bg-teal-600 hover:bg-teal-700' : ''}
-            onClick={() => setTamanho('60x40')}
+            variant={escopo === 'todas' ? 'default' : 'outline'}
+            className={escopo === 'todas' ? 'bg-teal-600 hover:bg-teal-700' : ''}
+            onClick={() => setEscopo('todas')}
           >
-            60 × 40
+            Todas
           </Button>
           <Button
             size="sm"
-            variant={tamanho === '100x40' ? 'default' : 'outline'}
-            className={tamanho === '100x40' ? 'bg-teal-600 hover:bg-teal-700' : ''}
-            onClick={() => setTamanho('100x40')}
+            variant={escopo === 'empresa' ? 'default' : 'outline'}
+            className={escopo === 'empresa' ? 'bg-teal-600 hover:bg-teal-700' : ''}
+            onClick={() => setEscopo('empresa')}
           >
-            100 × 40
+            Por empresa
           </Button>
-          <Button className="bg-teal-600 hover:bg-teal-700" onClick={imprimir}>
-            Imprimir
+          <Button
+            size="sm"
+            variant={escopo === 'uma' ? 'default' : 'outline'}
+            className={escopo === 'uma' ? 'bg-teal-600 hover:bg-teal-700' : ''}
+            onClick={() => setEscopo('uma')}
+          >
+            Uma etiqueta
+          </Button>
+
+          {escopo === 'empresa' && (
+            <select
+              className="h-9 rounded-md border bg-background px-3 text-sm"
+              value={empresaSel}
+              onChange={(e) => setEmpresaSel(e.target.value)}
+            >
+              <option value="">Escolha a empresa…</option>
+              {empresas.map(([id, nome]) => (
+                <option key={id} value={id}>
+                  {nome}
+                </option>
+              ))}
+            </select>
+          )}
+          {escopo === 'uma' && (
+            <Input
+              className="w-56"
+              value={patrimonioBusca}
+              onChange={(e) => setPatrimonioBusca(e.target.value)}
+              placeholder="Número do patrimônio (ex.: LCCA026)"
+            />
+          )}
+          <Button
+            className="bg-teal-600 hover:bg-teal-700"
+            onClick={imprimir}
+            disabled={lista.length === 0}
+          >
+            Imprimir {lista.length > 0 ? `(${lista.length})` : ''}
           </Button>
         </div>
       </div>
@@ -157,10 +169,19 @@ export default function Etiquetas() {
       {carregando ? (
         <p className="text-muted-foreground">Carregando…</p>
       ) : (
-        <div className="flex flex-wrap gap-3 print:gap-0">
+        <div className="flex flex-col gap-3 print:gap-0">
           {lista.map((e) => (
-            <Etiqueta key={e.id} eq={e} tamanho={tamanho} />
+            <Etiqueta key={e.id} eq={e} />
           ))}
+          {lista.length === 0 && (
+            <p className="text-muted-foreground">
+              {escopo === 'uma'
+                ? 'Digite o número do patrimônio para escolher a etiqueta.'
+                : escopo === 'empresa'
+                  ? 'Escolha a empresa para ver as etiquetas dela.'
+                  : ''}
+            </p>
+          )}
         </div>
       )}
     </div>
