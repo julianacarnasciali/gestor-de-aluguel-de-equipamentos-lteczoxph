@@ -22,7 +22,7 @@ export default function Layout() {
 
   return (
     <main className="flex min-h-screen flex-col bg-slate-100">
-      <header className="bg-white border-b shadow-sm">
+      <header className="bg-white border-b shadow-sm print:hidden">
         <div className="container mx-auto px-4 h-14 flex items-center gap-6">
           <div className="flex items-center gap-2 font-bold text-teal-700">
             <img

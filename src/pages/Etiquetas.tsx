@@ -4,17 +4,26 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import QRCode from 'qrcode'
 
-// Etiquetas de patrimônio com QR (pedido 13-14/10).
-// LAYOUT 100×40 = o print APROVADO dela (14/10): "Problema?" 28px bold,
-// "Escaneie e abra o chamado técnico" 16px, "LCCA Tech" 23px, patrimônio 10px
-// embaixo do QR — SEM setor/empresa cliente (ela tirou de propósito).
-// Saída de impressão: @page exatamente 100mm×40mm (Elgin L42 Pro Full).
+// Etiquetas de patrimônio com QR (pedido 13-14/10; revisão 14/10 09h — feedback
+// da impressão real na Elgin L42 Pro Full):
+// 1) header do sistema NÃO sai mais na impressão (print:hidden no Layout)
+// 2) patrimônio sobe p/ 14px bold (10px era ilegível na bobina — pedido dela)
+// 3) conteúdo ocupa os 100mm (justify-between — não sobram 30mm vazios)
+// 4) PRETO 100% em tudo (térmica não tem cor — teal saía cinza)
+// 5) busca por patrimônio normalizada (ignora espaços/maiúsculas) e mostra matches
+// 6) escopo empresa: enquanto não escolher, mostra NADA (não todas)
 const URL_BASE = typeof window !== 'undefined' ? window.location.origin : ''
+
+const normalizar = (s: string) => (s || '').toLowerCase().replace(/\s+/g, '')
 
 function Etiqueta({ eq }: { eq: Equipamento }) {
   const [qr, setQr] = useState('')
   useEffect(() => {
-    QRCode.toDataURL(`${URL_BASE}/chamado?eq=${eq.id}`, { margin: 0, width: 320 })
+    QRCode.toDataURL(`${URL_BASE}/chamado?eq=${eq.id}`, {
+      margin: 0,
+      width: 320,
+      color: { dark: '#000000', light: '#ffffff' },
+    })
       .then(setQr)
       .catch(() => setQr(''))
   }, [eq.id])
@@ -22,28 +31,28 @@ function Etiqueta({ eq }: { eq: Equipamento }) {
   return (
     <div
       className="etiqueta bg-white flex items-center justify-between overflow-hidden"
-      style={{ width: '100mm', height: '40mm', padding: '2mm 3mm' }}
+      style={{ width: '100mm', height: '40mm', padding: '2mm 4mm', color: '#000' }}
     >
-      {/* coluna de texto — fontes do print dela */}
-      <div className="flex flex-col justify-center" style={{ lineHeight: 1.15 }}>
-        <div className="font-bold text-slate-900" style={{ fontSize: 28 }}>
+      {/* coluna de texto — layout do print dela, tudo PRETO PURO */}
+      <div className="flex flex-col justify-center" style={{ lineHeight: 1.15, color: '#000' }}>
+        <div className="font-bold" style={{ fontSize: 28, color: '#000' }}>
           Problema?
         </div>
-        <div className="text-slate-900" style={{ fontSize: 16 }}>
+        <div style={{ fontSize: 16, color: '#000' }}>
           Escaneie e abra o
           <br />
           chamado técnico
         </div>
-        <div className="font-bold text-slate-900" style={{ fontSize: 23, marginTop: 2 }}>
+        <div className="font-bold" style={{ fontSize: 23, marginTop: 2, color: '#000' }}>
           LCCA Tech
         </div>
       </div>
-      {/* QR + patrimônio embaixo */}
+      {/* QR à direita + patrimônio LEGÍVEL embaixo */}
       <div className="flex flex-col items-center justify-center">
         {qr && (
           <img src={qr} alt={`QR ${eq.patrimonio}`} style={{ width: '22mm', height: '22mm' }} />
         )}
-        <div className="font-mono text-slate-900" style={{ fontSize: 10, marginTop: 1 }}>
+        <div className="font-mono font-bold" style={{ fontSize: 14, marginTop: 1, color: '#000' }}>
           {eq.patrimonio || '—'}
         </div>
       </div>
@@ -56,7 +65,7 @@ type Escopo = 'todas' | 'empresa' | 'uma'
 export default function Etiquetas() {
   const [eqs, setEqs] = useState<Equipamento[]>([])
   const [carregando, setCarregando] = useState(true)
-  const [escopo, setEscopo] = useState<Escopo>('todas')
+  const [escopo, setEscopo] = useState<Escopo>('uma')
   const [empresaSel, setEmpresaSel] = useState('')
   const [patrimonioBusca, setPatrimonioBusca] = useState('')
 
@@ -66,7 +75,7 @@ export default function Etiquetas() {
       .finally(() => setCarregando(false))
   }, [])
 
-  // @page EXATAMENTE do tamanho da etiqueta — sai 1 etiqueta por corte na térmica
+  // @page EXATAMENTE 100×40mm, sem margem — 1 etiqueta por corte na térmica
   useEffect(() => {
     const style = document.createElement('style')
     style.id = 'etiqueta-page'
@@ -88,11 +97,16 @@ export default function Etiquetas() {
   }, [eqs])
 
   const lista = useMemo(() => {
-    if (escopo === 'empresa' && empresaSel) return eqs.filter((e) => e.empresa === empresaSel)
+    if (escopo === 'empresa') {
+      // sem empresa escolhida = NADA (não imprimir todas por engano)
+      if (!empresaSel) return []
+      return eqs.filter((e) => e.empresa === empresaSel)
+    }
     if (escopo === 'uma') {
-      const q = patrimonioBusca.trim().toLowerCase()
+      const q = normalizar(patrimonioBusca)
       if (!q) return []
-      return eqs.filter((e) => (e.patrimonio || '').toLowerCase().includes(q)).slice(0, 1)
+      // acha por CONTÉM normalizado (LCCA026 acha "lcca 026" também)
+      return eqs.filter((e) => normalizar(e.patrimonio).includes(q))
     }
     return eqs
   }, [eqs, escopo, empresaSel, patrimonioBusca])
@@ -105,35 +119,43 @@ export default function Etiquetas() {
         <div>
           <h1 className="text-2xl font-bold">Etiquetas de patrimônio</h1>
           <p className="text-sm text-muted-foreground">
-            {lista.length} etiqueta(s) · 100×40 mm · QR abre o chamado técnico
+            {lista.length} etiqueta(s) · 100×40 mm · preto 100% · QR abre o chamado técnico
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
-            variant={escopo === 'todas' ? 'default' : 'outline'}
-            className={escopo === 'todas' ? 'bg-teal-600 hover:bg-teal-700' : ''}
-            onClick={() => setEscopo('todas')}
+            variant={escopo === 'uma' ? 'default' : 'outline'}
+            className={escopo === 'uma' ? 'bg-black hover:bg-slate-800' : ''}
+            onClick={() => setEscopo('uma')}
           >
-            Todas
+            Uma etiqueta
           </Button>
           <Button
             size="sm"
             variant={escopo === 'empresa' ? 'default' : 'outline'}
-            className={escopo === 'empresa' ? 'bg-teal-600 hover:bg-teal-700' : ''}
+            className={escopo === 'empresa' ? 'bg-black hover:bg-slate-800' : ''}
             onClick={() => setEscopo('empresa')}
           >
             Por empresa
           </Button>
           <Button
             size="sm"
-            variant={escopo === 'uma' ? 'default' : 'outline'}
-            className={escopo === 'uma' ? 'bg-teal-600 hover:bg-teal-700' : ''}
-            onClick={() => setEscopo('uma')}
+            variant={escopo === 'todas' ? 'default' : 'outline'}
+            className={escopo === 'todas' ? 'bg-black hover:bg-slate-800' : ''}
+            onClick={() => setEscopo('todas')}
           >
-            Uma etiqueta
+            Todas
           </Button>
 
+          {escopo === 'uma' && (
+            <Input
+              className="w-64"
+              value={patrimonioBusca}
+              onChange={(e) => setPatrimonioBusca(e.target.value)}
+              placeholder="Número do patrimônio (ex.: LCCA026)"
+            />
+          )}
           {escopo === 'empresa' && (
             <select
               className="h-9 rounded-md border bg-background px-3 text-sm"
@@ -148,16 +170,8 @@ export default function Etiquetas() {
               ))}
             </select>
           )}
-          {escopo === 'uma' && (
-            <Input
-              className="w-56"
-              value={patrimonioBusca}
-              onChange={(e) => setPatrimonioBusca(e.target.value)}
-              placeholder="Número do patrimônio (ex.: LCCA026)"
-            />
-          )}
           <Button
-            className="bg-teal-600 hover:bg-teal-700"
+            className="bg-black hover:bg-slate-800"
             onClick={imprimir}
             disabled={lista.length === 0}
           >
@@ -176,9 +190,9 @@ export default function Etiquetas() {
           {lista.length === 0 && (
             <p className="text-muted-foreground">
               {escopo === 'uma'
-                ? 'Digite o número do patrimônio para escolher a etiqueta.'
+                ? 'Digite o número do patrimônio — mostro as etiquetas que combinam.'
                 : escopo === 'empresa'
-                  ? 'Escolha a empresa para ver as etiquetas dela.'
+                  ? 'Escolha a empresa no seletor para ver só as etiquetas dela.'
                   : ''}
             </p>
           )}
