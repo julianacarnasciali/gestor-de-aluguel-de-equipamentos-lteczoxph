@@ -4,6 +4,7 @@ import {
   getContratos,
   getEquipamentos,
   updateEmpresa,
+  createEmpresa,
   type Empresa,
   type Contato,
   type Equipamento,
@@ -16,7 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DialogEquipamentosEmpresa } from '@/components/DialogEquipamentosEmpresa'
-import { Package } from 'lucide-react'
+import { Package, Plus } from 'lucide-react'
 import { consultarCnpj } from '@/lib/cnpj'
 const MESES: Record<string, string> = {
   '01': 'Janeiro',
@@ -34,6 +35,27 @@ const MESES: Record<string, string> = {
 }
 
 const contatoVazio = (): Contato => ({ nome: '', setor: '', email: '' })
+
+// empresa nova = formulário em branco (mesmo formulário da edição)
+const empresaNova = (): Empresa => ({
+  id: '',
+  nome: '',
+  cnpj_cpf: '',
+  telefone: '',
+  email: '',
+  endereco: '',
+  grupo: '',
+  unidade: '',
+  responsavel_email: '',
+  responsavel_nome: '',
+  emite_nf: false,
+  ativo: true,
+  observacoes: '',
+  tipo_cliente: 'impressora',
+  contatos: [],
+  indicado_por: '',
+  indicado_por_texto: '',
+})
 
 export default function Empresas() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
@@ -174,7 +196,7 @@ export default function Empresas() {
       .finally(() => setCarregando(false))
   }, [])
 
-  const abrirEdicao = (e: Empresa) => {
+  const abrirForm = (e: Empresa) => {
     let base: Contato[] = e.contatos && e.contatos.length ? [...e.contatos] : []
     if (!base.length && (e.responsavel_email || e.responsavel_nome)) {
       base = [{ nome: e.responsavel_nome ?? '', setor: '', email: e.responsavel_email ?? '' }]
@@ -189,6 +211,14 @@ export default function Empresas() {
     setCepErro('')
     setErroForm('')
   }
+
+  const abrirEdicao = (e: Empresa) => abrirForm(e)
+  const abrirNovo = () => {
+    const nova = empresaNova()
+    abrirForm(nova)
+    setEditando(nova)
+  }
+  const ehNovo = !editando?.id
 
   const alternarNota = async (e: Empresa, valor: boolean) => {
     setEmpresas((prev) => prev.map((x) => (x.id === e.id ? { ...x, emite_nf: valor } : x)))
@@ -220,7 +250,7 @@ export default function Empresas() {
     }
     setSalvando(true)
     try {
-      await updateEmpresa(editando.id, {
+      const dados = {
         nome: editando.nome,
         cnpj_cpf: editando.cnpj_cpf,
         telefone: editando.telefone,
@@ -241,8 +271,18 @@ export default function Empresas() {
         ativo: editando.ativo,
         emite_nf: editando.emite_nf,
         observacoes: editando.observacoes ?? '',
-      })
-      setEmpresas((prev) => prev.map((x) => (x.id === editando.id ? { ...editando, contatos } : x)))
+      }
+      if (ehNovo) {
+        const criada = await createEmpresa(dados)
+        setEmpresas((prev) =>
+          [...prev, criada].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+        )
+      } else {
+        await updateEmpresa(editando.id, dados)
+        setEmpresas((prev) =>
+          prev.map((x) => (x.id === editando.id ? { ...editando, contatos } : x)),
+        )
+      }
       setEditando(null)
     } catch {
       setErroForm('Não foi possível salvar. Tente novamente.')
@@ -256,11 +296,16 @@ export default function Empresas() {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Empresas / Clientes</h1>
-        <p className="text-sm text-muted-foreground">
-          {ativas.length} ativas · {inativas.length} históricas · clique no card para editar
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Empresas / Clientes</h1>
+          <p className="text-sm text-muted-foreground">
+            {ativas.length} ativas · {inativas.length} históricas · clique no card para editar
+          </p>
+        </div>
+        <Button className="bg-teal-600 hover:bg-teal-700" onClick={abrirNovo}>
+          <Plus className="h-4 w-4 mr-1" /> Novo cliente
+        </Button>
       </div>
 
       {carregando ? (
@@ -362,7 +407,7 @@ export default function Empresas() {
       <Dialog open={!!editando} onOpenChange={(open) => !open && setEditando(null)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar empresa</DialogTitle>
+            <DialogTitle>{ehNovo ? 'Novo cliente' : 'Editar empresa'}</DialogTitle>
           </DialogHeader>
           {editando && (
             <div className="grid gap-3 py-2">
@@ -449,30 +494,9 @@ export default function Empresas() {
                 <Input
                   value={editando.endereco}
                   onChange={(e) => setEditando({ ...editando, endereco: e.target.value })}
+                  onBlur={(e) => buscarCep(e.target.value)}
                   placeholder="Rua X, N, Bairro, Cidade - UF, CEP, Complemento"
                 />
-              </div>{' '}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>E-mail da empresa</Label>
-                  <Input
-                    value={editando.email}
-                    onChange={(e) => setEditando({ ...editando, email: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>
-                    Endereço{' '}
-                    {cepBuscando && <span className="text-xs text-teal-700">buscando CEP…</span>}
-                  </Label>
-                  <Input
-                    value={editando.endereco}
-                    onChange={(e) => setEditando({ ...editando, endereco: e.target.value })}
-                    onBlur={(e) => buscarCep(e.target.value)}
-                    placeholder="Cole o CEP no fim do endereço — o sistema completa rua/bairro/cidade dos Correios"
-                  />
-                  {cepErro && <p className="text-xs text-red-600">{cepErro}</p>}
-                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
