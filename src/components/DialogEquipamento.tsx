@@ -41,10 +41,18 @@ export function DialogEquipamento({
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [salvando, setSalvando] = useState(false)
   const [confirmarExclusao, setConfirmarExclusao] = useState(false)
+  // TROCA DE EQUIPAMENTO (pedido dela 15/10): máquina substituída — desativa a
+  // atual (com data) e cria a nova no mesmo cliente/contrato/setor
+  const [emTroca, setEmTroca] = useState(false)
+  const [troca, setTroca] = useState({ patrimonio: '', numero_serie: '', marca_modelo: '' })
+  const [erro, setErro] = useState('')
 
   useEffect(() => {
     if (estado) {
       setConfirmarExclusao(false)
+      setEmTroca(false)
+      setTroca({ patrimonio: '', numero_serie: '', marca_modelo: '' })
+      setErro('')
       if (estado.eq) {
         const e = estado.eq
         setForm({
@@ -110,6 +118,47 @@ export function DialogEquipamento({
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }))
 
+  // troca: desativa a atual (substituido_em = hoje) + cria a nova herdando
+  // cliente/contrato/setor/tipo — o histórico de leituras fica na antiga
+  const salvarTroca = async () => {
+    if (!estado?.eq) return
+    if (!troca.patrimonio.trim()) {
+      setErro('O patrimônio da máquina nova é obrigatório.')
+      return
+    }
+    setSalvando(true)
+    setErro('')
+    try {
+      await updateEquipamento(estado.eq.id, {
+        ativo: false,
+        substituido_em: new Date().toISOString(),
+        descricao: `Substituída por ${troca.patrimonio.trim()}${troca.marca_modelo.trim() ? ` (${troca.marca_modelo.trim()})` : ''}`,
+      })
+      await createEquipamento({
+        tipo: form.tipo,
+        empresa: estado.empresaId,
+        contrato: form.contrato || null,
+        patrimonio: troca.patrimonio.trim(),
+        numero_serie: troca.numero_serie.trim(),
+        marca_modelo: troca.marca_modelo.trim(),
+        setor: form.setor,
+        ip: form.ip,
+        descricao: `Substitui ${estado.eq.patrimonio || estado.eq.id}`,
+        ativo: true,
+      })
+      onSalvo()
+      onFechar()
+    } catch (err) {
+      setErro(
+        (err as Error)?.message?.includes('patrimonio')
+          ? 'Esse nº de patrimônio já existe — confira.'
+          : 'Não foi possível salvar a troca. Tente novamente.',
+      )
+    } finally {
+      setSalvando(false)
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(open) => !open && onFechar()}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
@@ -172,41 +221,101 @@ export function DialogEquipamento({
             <Label>Descrição</Label>
             <Input value={form.descricao} onChange={(e) => set('descricao', e.target.value)} />
           </div>
-          <div className="flex justify-between gap-2 pt-2">
-            {estado.eq ? (
-              confirmarExclusao ? (
-                <Button variant="destructive" onClick={excluir} disabled={salvando}>
-                  Confirmar exclusão
+          {emTroca ? (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-800">
+                  🔄 Trocar equipamento — {estado.eq?.patrimonio || ''}
+                </p>
+                <p className="text-xs text-amber-700">
+                  A máquina atual fica desativada (o histórico de leituras dela é preservado) e a
+                  nova entra no mesmo cliente, contrato e setor.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label>Patrimônio da nova *</Label>
+                <Input
+                  value={troca.patrimonio}
+                  onChange={(e) => setTroca({ ...troca, patrimonio: e.target.value })}
+                  placeholder="LCC00998877"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Número de série</Label>
+                  <Input
+                    value={troca.numero_serie}
+                    onChange={(e) => setTroca({ ...troca, numero_serie: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Marca / modelo</Label>
+                  <Input
+                    value={troca.marca_modelo}
+                    onChange={(e) => setTroca({ ...troca, marca_modelo: e.target.value })}
+                  />
+                </div>
+              </div>
+              {erro && <p className="text-sm text-red-600">{erro}</p>}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEmTroca(false)} disabled={salvando}>
+                  Voltar
                 </Button>
-              ) : (
                 <Button
-                  variant="ghost"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  onClick={() => setConfirmarExclusao(true)}
+                  className="bg-amber-600 hover:bg-amber-700"
+                  onClick={salvarTroca}
+                  disabled={salvando || !troca.patrimonio.trim()}
                 >
-                  Excluir
+                  {salvando ? 'Trocando…' : 'Confirmar troca'}
                 </Button>
-              )
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={onFechar}>
-                Cancelar
-              </Button>
-              <Button
-                className="bg-teal-600 hover:bg-teal-700"
-                onClick={salvar}
-                disabled={salvando || !form.patrimonio}
-              >
-                {salvando ? '...' : 'Salvar'}
-              </Button>
+              </div>
             </div>
-          </div>
-          {estado.eq && (
+          ) : (
+            <div className="flex justify-between gap-2 pt-2">
+              {estado.eq ? (
+                confirmarExclusao ? (
+                  <Button variant="destructive" onClick={excluir} disabled={salvando}>
+                    Confirmar exclusão
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => setConfirmarExclusao(true)}
+                  >
+                    Excluir
+                  </Button>
+                )
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                {estado.eq && (
+                  <Button
+                    variant="outline"
+                    className="border-amber-500 text-amber-700 hover:bg-amber-50"
+                    onClick={() => setEmTroca(true)}
+                  >
+                    🔄 Trocar
+                  </Button>
+                )}
+                <Button variant="outline" onClick={onFechar}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-teal-600 hover:bg-teal-700"
+                  onClick={salvar}
+                  disabled={salvando || !form.patrimonio}
+                >
+                  {salvando ? '...' : 'Salvar'}
+                </Button>
+              </div>
+            </div>
+          )}
+          {estado.eq && !emTroca && (
             <p className="text-xs text-muted-foreground">
               Excluir = desativar: a máquina some das listas e dos cálculos, mas o histórico de
-              leituras fica guardado.
+              leituras fica guardado. Para substituir a máquina por outra, use <b>🔄 Trocar</b>.
             </p>
           )}
         </div>

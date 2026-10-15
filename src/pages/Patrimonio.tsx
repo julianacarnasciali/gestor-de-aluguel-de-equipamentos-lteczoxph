@@ -4,6 +4,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { DialogEquipamento, type DialogEquipState } from '@/components/DialogEquipamento'
+import { Pencil } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -32,6 +34,23 @@ export default function Patrimonio() {
   const [carregando, setCarregando] = useState(true)
   const [busca, setBusca] = useState('')
   const [soAtivos, setSoAtivos] = useState(true)
+  // edição direto da linha (pedido dela 15/10): clicou na linha → diálogo
+  const [dialog, setDialog] = useState<DialogEquipState | null>(null)
+
+  const abrirEdicao = (e: Equipamento) => {
+    const emp = e.expand?.empresa
+    setDialog({
+      empresaId: e.empresa,
+      empresaNome: emp?.nome || '—',
+      eq: e,
+    })
+  }
+
+  const recarregar = () => {
+    getEquipamentosPatrimonio()
+      .then(setEqs)
+      .catch(() => {})
+  }
 
   useEffect(() => {
     getEquipamentosPatrimonio()
@@ -114,9 +133,16 @@ export default function Patrimonio() {
                   const emp = e.expand?.empresa
                   const ctr = e.expand?.contrato
                   return (
-                    <TableRow key={e.id} className={e.ativo ? '' : 'opacity-50'}>
+                    <TableRow
+                      key={e.id}
+                      className={`cursor-pointer hover:bg-slate-50 ${e.ativo ? '' : 'opacity-50'}`}
+                      onClick={() => abrirEdicao(e)}
+                    >
                       <TableCell className="font-mono font-semibold text-teal-700">
-                        {e.patrimonio || '—'}
+                        <span className="inline-flex items-center gap-1.5">
+                          {e.patrimonio || '—'}
+                          <Pencil className="h-3 w-3 text-slate-400" />
+                        </span>
                       </TableCell>
                       <TableCell>{TIPO_LABEL[e.tipo] ?? e.tipo}</TableCell>
                       <TableCell>{e.marca_modelo || '—'}</TableCell>
@@ -161,6 +187,8 @@ export default function Patrimonio() {
           </CardContent>
         </Card>
       )}
+
+      <DialogEquipamento estado={dialog} onFechar={() => setDialog(null)} onSalvo={recarregar} />
     </div>
   )
 }
