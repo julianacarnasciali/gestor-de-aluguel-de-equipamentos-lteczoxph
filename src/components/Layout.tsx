@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 
@@ -19,6 +19,10 @@ const links = [
 export default function Layout() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  // Página inicial em quadradinhos (14/10): na home o menu lateral grande
+  // some — a home É a navegação. Nas outras páginas o menu volta.
+  const naHome = location.pathname === '/'
 
   return (
     <main className="flex min-h-screen flex-col bg-slate-100">
@@ -32,22 +36,24 @@ export default function Layout() {
             />
             <span className="hidden sm:inline">Gestor de Aluguel</span>
           </div>
-          <nav className="flex items-center gap-1">
-            {links.map((l) => (
-              <NavLink
-                key={l.to}
-                to={l.to}
-                end={l.to === '/'}
-                className={({ isActive }) =>
-                  `px-3 py-1.5 rounded-md text-sm font-medium ${
-                    isActive ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                  }`
-                }
-              >
-                {l.label}
-              </NavLink>
-            ))}
-          </nav>
+          {!naHome && (
+            <nav className="flex items-center gap-1">
+              {links.map((l) => (
+                <NavLink
+                  key={l.to}
+                  to={l.to}
+                  end={l.to === '/'}
+                  className={({ isActive }) =>
+                    `px-3 py-1.5 rounded-md text-sm font-medium ${
+                      isActive ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    }`
+                  }
+                >
+                  {l.label}
+                </NavLink>
+              ))}
+            </nav>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <Button asChild variant="ghost" size="sm">
               <NavLink to="/conta">{user?.name ?? 'Conta'}</NavLink>
