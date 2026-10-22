@@ -6,8 +6,10 @@ import {
   getEquipamentos,
   updateEmpresa,
   createEmpresa,
+  updateContrato,
   type Empresa,
   type Contato,
+  type Contrato,
   type Equipamento,
 } from '@/services/gestor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -210,6 +212,19 @@ export default function Empresas() {
     id?: string
   } | null>(null)
   const [docAberto, setDocAberto] = useState(false)
+  // VIGÊNCIA E REAJUSTE (pedido dela 23/10): campos editáveis que gravam no
+  // contrato ativo da empresa — mes_ini/mes_fim (vencimento), reajuste_mes
+  // (aniversário) e reajuste_percentual. O cron aviso_reajuste.js usa isso p/
+  // avisar no dia 1º quando falta 1 mês p/ o reajuste (marca dos 11 meses).
+  const [ctrForm, setCtrForm] = useState({
+    mes_ini: '',
+    mes_fim: '',
+    reajuste_mes: '',
+    reajuste_percentual: '',
+  })
+  const [ctrId, setCtrId] = useState('')
+  const [ctrSalvando, setCtrSalvando] = useState(false)
+  const [ctrs, setCtrs] = useState<Contrato[]>([])
 
   // montagem do endereço no PADRÃO DO BANCO ASAAS (NF exige):
   // "Rua X, N, Bairro, Cidade - UF, CEP" — complemento vai no fim, separado por vírgula
@@ -321,11 +336,15 @@ export default function Empresas() {
       .then(([emps, ctrs, eqs]) => {
         setEmpresas(emps)
         setEquipamentos(eqs)
+        setCtrs(ctrs)
         const mapa: Record<string, string> = {}
         for (const c of ctrs) {
           if (!c.ativo) continue
+          const mes = (c.reajuste_mes || '').split('/')[0]
           const pct = c.reajuste_percentual ? ` — ${c.reajuste_percentual}%` : ''
-          mapa[c.empresa] = `${MESES[c.reajuste_mes] ?? c.reajuste_mes}${pct}`
+          const vig =
+            c.mes_ini && c.mes_fim ? ` · vigência ${c.mes_ini}–${c.mes_fim}` : ''
+          mapa[c.empresa] = `${MESES[mes] ?? mes || '—'}${pct}${vig}`
         }
         setReajustes(mapa)
         // ?abrir=ID na URL: abre o diálogo da empresa correspondente
@@ -355,6 +374,15 @@ export default function Empresas() {
     setCep(mcep ? mcep[1].replace('-', '') : '')
     setCepErro('')
     setErroForm('')
+    // vigência/reajuste do contrato ativo (campos editáveis — pedido dela 23/10)
+    const ativo = ctrs.find((c) => c.ativo && c.empresa === e.id)
+    setCtrId(ativo?.id ?? '')
+    setCtrForm({
+      mes_ini: ativo?.mes_ini ?? '',
+      mes_fim: ativo?.mes_fim ?? '',
+      reajuste_mes: (ativo?.reajuste_mes ?? '').split('/')[0],
+      reajuste_percentual: ativo?.reajuste_percentual ? String(ativo.reajuste_percentual) : '',
+    })
   }
 
   const abrirEdicao = (e: Empresa) => abrirForm(e)
@@ -387,6 +415,17 @@ export default function Empresas() {
       .filter((c) => c.email || c.nome || c.setor)
     if (!contatos[0]?.email) {
       setErroForm('O 1º e-mail (responsável pelo contrato) é obrigatório.')
+      return
+    }
+    // validação da vigência/reajuste antes de salvar
+    const mm = (v: string) => /^\d{2}$/.test(v) && Number(v) >= 1 && Number(v) <= 12
+    const mmaa = (v: string) => /^\d{2}\/\d{4}$/.test(v)
+    if ((ctrForm.mes_ini && !mmaa(ctrForm.mes_ini)) || (ctrForm.mes_fim && !mmaa(ctrForm.mes_fim))) {
+      setErroForm('Vigência no formato MM/AAAA (ex.: 01/2025).')
+      return
+    }
+    if (ctrForm.reajuste_mes && !mm(ctrForm.reajuste_mes)) {
+      setErroForm('Mês do reajuste: número de 01 a 12.')
       return
     }
     setSalvando(true)
@@ -423,6 +462,39 @@ export default function Empresas() {
         setEmpresas((prev) =>
           prev.map((x) => (x.id === editando.id ? { ...editando, contatos } : x)),
         )
+      }
+      // vigência/reajuste no contrato ativo (pedido dela 23/10) — falha aqui
+      // não perde o salvamento da empresa
+      if (ctrId) {
+        const pct = Number(ctrForm.reajuste_percentual || 0)
+        await updateContrato(ctrId, {
+          mes_ini: ctrForm.mes_ini,
+          mes_fim: ctrForm.mes_fim,
+          reajuste_mes: ctrForm.reajuste_mes,
+          reajuste_percentual: pct,
+        })
+        setCtrs((prev) =>
+          prev.map((c) =>
+            c.id === ctrId
+              ? {
+                  ...c,
+                  mes_ini: ctrForm.mes_ini,
+                  mes_fim: ctrForm.mes_fim,
+                  reajuste_mes: ctrForm.reajuste_mes,
+                  reajuste_percentual: pct,
+                }
+              : c,
+          ),
+        )
+        const mes = ctrForm.reajuste_mes
+        setReajustes((prev) => ({
+          ...prev,
+          [editando.id]: `${MESES[mes] ?? mes || '—'}${pct ? ` — ${pct}%` : ''}${
+            ctrForm.mes_ini && ctrForm.mes_fim
+              ? ` · vigência ${ctrForm.mes_ini}–${ctrForm.mes_fim}`
+              : ''
+          }`,
+        }))
       }
       setEditando(null)
     } catch {
@@ -689,10 +761,69 @@ export default function Empresas() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Reajuste do contrato</Label>
-                  <p className="rounded-md border p-2 text-sm bg-slate-50">
-                    {reajustes[editando.id] ?? 'Sem contrato ativo'}
-                  </p>
+                  <Label>Vigência e reajuste do contrato</Label>
+                  {ctrId ? (
+                    <div className="rounded-md border bg-slate-50 p-2 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[11px] text-slate-500">Início (MM/AAAA)</Label>
+                          <Input
+                            value={ctrForm.mes_ini}
+                            onChange={(e) =>
+                              setCtrForm({ ...ctrForm, mes_ini: e.target.value })
+                            }
+                            placeholder="01/2025"
+                            inputMode="numeric"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[11px] text-slate-500">Vence (MM/AAAA)</Label>
+                          <Input
+                            value={ctrForm.mes_fim}
+                            onChange={(e) =>
+                              setCtrForm({ ...ctrForm, mes_fim: e.target.value })
+                            }
+                            placeholder="01/2027"
+                            inputMode="numeric"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[11px] text-slate-500">
+                            Mês do reajuste (aniversário)
+                          </Label>
+                          <Input
+                            value={ctrForm.reajuste_mes}
+                            onChange={(e) =>
+                              setCtrForm({ ...ctrForm, reajuste_mes: e.target.value })
+                            }
+                            placeholder="01–12"
+                            inputMode="numeric"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[11px] text-slate-500">Reajuste (%)</Label>
+                          <Input
+                            value={ctrForm.reajuste_percentual}
+                            onChange={(e) =>
+                              setCtrForm({ ...ctrForm, reajuste_percentual: e.target.value })
+                            }
+                            placeholder="ex.: 5"
+                            inputMode="decimal"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        O sistema avisa por e-mail no dia 1º quando falta 1 mês para o reajuste
+                        (hora de definir o %) ou quando o contrato vence em 1–2 meses.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="rounded-md border p-2 text-sm bg-slate-50">
+                      {reajustes[editando.id] ?? 'Sem contrato ativo'}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="space-y-2">

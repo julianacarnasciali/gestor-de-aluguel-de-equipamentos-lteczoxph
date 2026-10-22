@@ -34,6 +34,10 @@ interface Avisos {
   empresasFechamentoPendente: Set<string>
   totalFechPendentes: number
   chamadosAbertos: number
+  // REAJUSTE/VENCIMENTO (pedido dela 23/10): empresas que entram no mês do
+  // reajuste (marca dos 11 meses) ou com contrato vencendo em 1-2 meses
+  empresasReajuste: Set<string>
+  totalReajustes: number
 }
 
 type Quad = { rotulo: string; ico: string; to: string; destaque?: boolean }
@@ -45,7 +49,7 @@ function CardEmpresa({
 }: {
   empresa: string
   quads: Quad[]
-  aviso: { tipo: 'ok' | 'leitura' | 'fechamento'; texto: string }
+  aviso: { tipo: 'ok' | 'leitura' | 'fechamento' | 'reajuste'; texto: string }
 }) {
   return (
     <div className="rounded-xl border bg-white p-4 shadow-sm">
@@ -59,6 +63,10 @@ function CardEmpresa({
       ) : aviso.tipo === 'leitura' ? (
         <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700">
           ⚠ {aviso.texto}
+        </div>
+      ) : aviso.tipo === 'reajuste' ? (
+        <div className="mb-2 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-700">
+          📅 {aviso.texto}
         </div>
       ) : (
         <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-700">
@@ -98,10 +106,14 @@ export default function Index() {
     empresasFechamentoPendente: new Set(),
     totalFechPendentes: 0,
     chamadosAbertos: 0,
+    empresasReajuste: new Set(),
+    totalReajustes: 0,
   })
   const [busca, setBusca] = useState('')
   const [mostrarHistoricas, setMostrarHistoricas] = useState(false)
   const [carregando, setCarregando] = useState(true)
+  // texto do aviso de reajuste/vencimento por empresa (pedido dela 23/10)
+  const [avisosReajuste, setAvisosReajuste] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const comp = competenciaAtual()
@@ -146,13 +158,51 @@ export default function Index() {
           (c) => c.status && !['resolvido', 'cancelado', 'concluido'].includes(c.status),
         )
 
+        // REAJUSTE/VENCIMENTO (pedido dela 23/10): reajuste no mês que vem
+        // (marca dos 11 meses) ou contrato vencendo em 1-2 meses
+        const hoje = new Date()
+        const mesNum = hoje.getMonth() + 1
+        const anoNum = hoje.getFullYear()
+        const nmNum = mesNum === 12 ? 1 : mesNum + 1
+        const nmAno = mesNum === 12 ? anoNum + 1 : anoNum
+        const numMes = (s: string) => {
+          const p = (s || '').split('/')
+          return Number(p[1]) * 12 + Number(p[0])
+        }
+        const atualNum = anoNum * 12 + mesNum
+        const empresasReajuste = new Set<string>()
+        let totalReajustes = 0
+        const avisoReajusteEmpresa: Record<string, string> = {}
+        for (const c of ctrsAtivos) {
+          const mesReaj = (c.reajuste_mes || '').split('/')[0]
+          if (/^\d{2}$/.test(mesReaj) && Number(mesReaj) === nmNum) {
+            empresasReajuste.add(c.empresa)
+            totalReajustes++
+            avisoReajusteEmpresa[c.empresa] =
+              `Reajuste em ${String(nmNum).padStart(2, '0')}/${nmAno} — definir % e avisar cliente`
+          }
+          const fim = c.mes_fim || ''
+          if (/^\d{2}\/\d{4}$/.test(fim)) {
+            const diff = numMes(fim) - atualNum
+            if (diff === 1 || diff === 2) {
+              empresasReajuste.add(c.empresa)
+              totalReajustes++
+              avisoReajusteEmpresa[c.empresa] =
+                avisoReajusteEmpresa[c.empresa] || `Contrato vence ${fim} — preparar renovação`
+            }
+          }
+        }
+
         setAvisos({
           empresasSemLeitura,
           totalLeiturasFaltando: semLeitura.length,
           empresasFechamentoPendente,
           totalFechPendentes: pend.length,
           chamadosAbertos: abertos.length,
+          empresasReajuste,
+          totalReajustes,
         })
+        setAvisosReajuste(avisoReajusteEmpresa)
       })
       .finally(() => setCarregando(false))
   }, [])
@@ -187,7 +237,9 @@ export default function Index() {
     { rotulo: 'Chamado', ico: '🔧', to: `/chamados?empresa=${e.id}` },
   ]
 
-  const avisoDe = (e: Empresa): { tipo: 'ok' | 'leitura' | 'fechamento'; texto: string } => {
+  const avisoDe = (
+    e: Empresa,
+  ): { tipo: 'ok' | 'leitura' | 'fechamento' | 'reajuste'; texto: string } => {
     if (avisos.empresasSemLeitura.has(e.id)) {
       const faltam =
         equipamentos.filter(
@@ -197,6 +249,11 @@ export default function Index() {
     }
     if (avisos.empresasFechamentoPendente.has(e.id))
       return { tipo: 'fechamento', texto: `Fechamento de ${competenciaAtual()} pendente` }
+    if (avisos.empresasReajuste.has(e.id))
+      return {
+        tipo: 'reajuste',
+        texto: avisosReajuste[e.id] || 'Reajuste/vencimento se aproximando',
+      }
     return { tipo: 'ok', texto: 'Em dia' }
   }
 
@@ -262,6 +319,14 @@ export default function Index() {
               className="rounded-lg border bg-white px-3 py-1.5 text-[13px] text-slate-700 shadow-sm hover:bg-sky-50"
             >
               🔧 Chamados abertos <b className="text-sky-700">{avisos.chamadosAbertos}</b>
+            </Link>
+          )}
+          {avisos.totalReajustes > 0 && (
+            <Link
+              to="/empresas"
+              className="rounded-lg border bg-white px-3 py-1.5 text-[13px] text-slate-700 shadow-sm hover:bg-violet-50"
+            >
+              📅 Reajustes/vencimentos <b className="text-violet-700">{avisos.totalReajustes}</b>
             </Link>
           )}
           {avisos.totalLeiturasFaltando === 0 &&

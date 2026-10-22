@@ -111,6 +111,8 @@ export const getContratos = () =>
     sort: '-ativo',
     expand: 'empresa',
   })
+export const updateContrato = (id: string, data: Partial<Contrato>) =>
+  pb.collection('contratos').update<Contrato>(id, data)
 
 // ---------- Equipamentos ----------
 export const getEquipamentos = () =>
