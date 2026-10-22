@@ -18,7 +18,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DialogEquipamentosEmpresa } from '@/components/DialogEquipamentosEmpresa'
-import { Package, Plus } from 'lucide-react'
+import { pbExport as pb } from '@/services/gestor'
+import { Package, Plus, FileText } from 'lucide-react'
 import { consultarCnpj } from '@/lib/cnpj'
 const MESES: Record<string, string> = {
   '01': 'Janeiro',
@@ -78,6 +79,23 @@ export default function Empresas() {
   const [cnpjBuscando, setCnpjBuscando] = useState(false)
   const [cnpjAviso, setCnpjAviso] = useState('')
   const ultimoCnpjBuscado = useRef('')
+  // GERAÇÃO DE CONTRATO/ADITIVO (pedido dela 22/10): campos no cadastro +
+  // botão que roda a conferência do agente de IA antes de gerar
+  const [docTipo, setDocTipo] = useState('contrato')
+  const [docValor, setDocValor] = useState('')
+  const [docFranquia, setDocFranquia] = useState('')
+  const [docExcedente, setDocExcedente] = useState('')
+  const [docLeitura, setDocLeitura] = useState('')
+  const [docVenc, setDocVenc] = useState('')
+  const [docNumero, setDocNumero] = useState('')
+  const [docGerando, setDocGerando] = useState(false)
+  const [docResultado, setDocResultado] = useState<{
+    ok: boolean
+    texto?: string
+    problemas?: { campo: string; problema: string; sugestao?: string }[]
+    id?: string
+  } | null>(null)
+  const [docAberto, setDocAberto] = useState(false)
 
   // montagem do endereço no PADRÃO DO BANCO ASAAS (NF exige):
   // "Rua X, N, Bairro, Cidade - UF, CEP" — complemento vai no fim, separado por vírgula
@@ -633,6 +651,192 @@ export default function Empresas() {
                   value={editando.observacoes}
                   onChange={(e) => setEditando({ ...editando, observacoes: e.target.value })}
                 />
+              </div>
+
+              {/* CONTRATO E ADITIVOS (pedido dela 22/10) */}
+              <div className="rounded-md border p-3 space-y-3">
+                <button
+                  className="flex w-full items-center justify-between text-sm font-semibold"
+                  onClick={() => setDocAberto((v) => !v)}
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-teal-700" /> Contrato e aditivos (gerar com
+                    conferência da IA)
+                  </span>
+                  <span>{docAberto ? '▴' : '▾'}</span>
+                </button>
+                {docAberto && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label>Tipo de documento</Label>
+                        <select
+                          className="w-full rounded-md border bg-transparent p-2 text-sm"
+                          value={docTipo}
+                          onChange={(e) => setDocTipo(e.target.value)}
+                        >
+                          <option value="contrato">Contrato de locação</option>
+                          <option value="aditivo_renovacao">Aditivo — renovação</option>
+                          <option value="aditivo_inclusao">
+                            Aditivo — inclusão de equipamentos
+                          </option>
+                          <option value="aditivo_exclusao">
+                            Aditivo — exclusão de equipamentos
+                          </option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Nº do contrato</Label>
+                        <Input
+                          value={docNumero}
+                          onChange={(e) => setDocNumero(e.target.value)}
+                          placeholder="ex.: 2026/015"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label>Valor mensal (R$)</Label>
+                        <Input
+                          inputMode="decimal"
+                          value={docValor}
+                          onChange={(e) => setDocValor(e.target.value)}
+                          placeholder="ex.: 450,00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Franquia (páginas)</Label>
+                        <Input
+                          inputMode="numeric"
+                          value={docFranquia}
+                          onChange={(e) => setDocFranquia(e.target.value)}
+                          placeholder="ex.: 5000"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label>Valor excedente (R$/pág)</Label>
+                        <Input
+                          inputMode="decimal"
+                          value={docExcedente}
+                          onChange={(e) => setDocExcedente(e.target.value)}
+                          placeholder="ex.: 0,08"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Dia da leitura / vencimento</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            inputMode="numeric"
+                            value={docLeitura}
+                            onChange={(e) => setDocLeitura(e.target.value)}
+                            placeholder="leitura"
+                          />
+                          <Input
+                            inputMode="numeric"
+                            value={docVenc}
+                            onChange={(e) => setDocVenc(e.target.value)}
+                            placeholder="venc."
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Dados da empresa (razão, CNPJ, endereço, responsável, SLA, reajuste,
+                      consumíveis, testemunhas) vêm do cadastro — preencha nos campos acima. Ao
+                      gerar, o agente de IA confere se tudo está preenchido e sem erros de
+                      ortografia antes de criar o documento.
+                    </p>
+                    <div className="flex justify-end">
+                      <Button
+                        className="bg-teal-600 hover:bg-teal-700"
+                        disabled={docGerando}
+                        onClick={async () => {
+                          if (!editando?.id) {
+                            setDocResultado({
+                              ok: false,
+                              problemas: [
+                                {
+                                  campo: 'empresa',
+                                  problema: 'Salve a empresa antes de gerar o documento.',
+                                  sugestao: '',
+                                },
+                              ],
+                            })
+                            return
+                          }
+                          setDocGerando(true)
+                          setDocResultado(null)
+                          try {
+                            const res = await fetch(
+                              `${import.meta.env.VITE_POCKETBASE_URL}/backend/v1/contrato/gerar`,
+                              {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  Authorization: pb.authStore.token,
+                                },
+                                body: JSON.stringify({
+                                  empresa_id: editando.id,
+                                  tipo: docTipo,
+                                  numero: docNumero,
+                                  valor_num: docValor,
+                                  pag_contratadas: docFranquia,
+                                  valor_exc: docExcedente,
+                                  leitura: docLeitura,
+                                  dia_venc: docVenc,
+                                }),
+                              },
+                            )
+                            const data = await res.json()
+                            setDocResultado(data)
+                          } catch {
+                            setDocResultado({
+                              ok: false,
+                              problemas: [
+                                {
+                                  campo: 'geral',
+                                  problema: 'Falha ao chamar o servidor — tente novamente.',
+                                  sugestao: '',
+                                },
+                              ],
+                            })
+                          } finally {
+                            setDocGerando(false)
+                          }
+                        }}
+                      >
+                        {docGerando ? 'Conferindo e gerando…' : '🤖 Gerar contrato / aditivo'}
+                      </Button>
+                    </div>
+                    {docResultado && !docResultado.ok && docResultado.problemas && (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+                        <p className="font-semibold text-amber-800 mb-1">
+                          O agente de IA achou problemas — corrija e gere de novo:
+                        </p>
+                        <ul className="list-disc pl-5 text-amber-700">
+                          {docResultado.problemas.map((p, i) => (
+                            <li key={i}>
+                              <b>{p.campo}</b>: {p.problema}
+                              {p.sugestao ? ` — sugestão: ${p.sugestao}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {docResultado?.ok && docResultado.texto && (
+                      <div className="rounded-md border border-teal-300 bg-teal-50 p-3">
+                        <p className="text-sm font-semibold text-teal-800 mb-1">
+                          ✅ Documento gerado (rascunho salvo no sistema)
+                        </p>
+                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs text-slate-700">
+                          {docResultado.texto}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between rounded-md border p-3">
                 <span className="text-sm font-medium">Emite nota fiscal</span>
