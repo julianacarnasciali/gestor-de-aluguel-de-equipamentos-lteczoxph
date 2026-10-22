@@ -183,8 +183,8 @@ export default function Index() {
       to: '/financeiro',
       destaque: avisos.empresasFechamentoPendente.has(e.id),
     },
-    { rotulo: 'Equip.', ico: '🖨️', to: '/patrimonio' },
-    { rotulo: 'Chamado', ico: '🔧', to: '/chamados' },
+    { rotulo: 'Equip.', ico: '🖨️', to: `/patrimonio?empresa=${e.id}` },
+    { rotulo: 'Chamado', ico: '🔧', to: `/chamados?empresa=${e.id}` },
   ]
 
   const avisoDe = (e: Empresa): { tipo: 'ok' | 'leitura' | 'fechamento'; texto: string } => {
