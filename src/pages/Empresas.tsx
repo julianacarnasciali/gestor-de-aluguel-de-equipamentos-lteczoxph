@@ -59,6 +59,92 @@ const empresaNova = (): Empresa => ({
   indicado_por_texto: '',
 })
 
+// Lista dos documentos já gerados da empresa (pedido dela 22/10: "salvou, mas
+// onde?") — clicou no item, o texto abre embaixo.
+function DocsGerados({ empresaId, refreshKey }: { empresaId: string; refreshKey?: number }) {
+  const [docs, setDocs] = useState<{ id: string; tipo: string; numero: string; created: string }[]>(
+    [],
+  )
+  const [aberto, setAberto] = useState<string | null>(null)
+  const [texto, setTexto] = useState('')
+  const [carregando, setCarregando] = useState(false)
+
+  useEffect(() => {
+    if (!empresaId) return
+    pb.collection('documentos_contrato')
+      .getFullList({
+        filter: `empresa = "${empresaId}"`,
+        sort: '-created',
+      })
+      .then((r) =>
+        setDocs(
+          r.map((x) => ({
+            id: x.id,
+            tipo: (x as unknown as { tipo: string }).tipo,
+            numero: (x as unknown as { numero?: string }).numero || '',
+            created: (x as unknown as { created: string }).created,
+          })),
+        ),
+      )
+      .catch(() => setDocs([]))
+  }, [empresaId, refreshKey])
+
+  const abrir = async (id: string) => {
+    if (aberto === id) {
+      setAberto(null)
+      return
+    }
+    setCarregando(true)
+    try {
+      const rec = await pb.collection('documentos_contrato').getOne(id)
+      setTexto((rec as unknown as { texto: string }).texto || '')
+      setAberto(id)
+    } finally {
+      setCarregando(false)
+    }
+  }
+
+  const ROTULOS: Record<string, string> = {
+    contrato: 'Contrato',
+    aditivo_renovacao: 'Aditivo — renovação',
+    aditivo_inclusao: 'Aditivo — inclusão',
+    aditivo_exclusao: 'Aditivo — exclusão',
+  }
+
+  if (docs.length === 0) return null
+  return (
+    <div className="rounded-md border bg-slate-50 p-2">
+      <p className="text-xs font-semibold text-slate-600 mb-1">
+        📄 Documentos gerados desta empresa ({docs.length})
+      </p>
+      <div className="flex flex-col gap-1">
+        {docs.map((d) => (
+          <div key={d.id}>
+            <button
+              className="text-xs text-teal-700 hover:underline text-left"
+              onClick={() => abrir(d.id)}
+            >
+              {aberto === d.id ? '▾' : '▸'} {ROTULOS[d.tipo] || d.tipo}
+              {d.numero ? ` nº ${d.numero}` : ''} —{' '}
+              {new Date(d.created.replace(' ', 'T') + 'Z').toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </button>
+            {aberto === d.id && (
+              <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded border bg-white p-2 text-[11px] text-slate-700">
+                {carregando ? 'Abrindo…' : texto}
+              </pre>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Empresas() {
   // ?abrir=ID (quadradinho "Contrato" do dashboard): abre o diálogo da empresa
   // direto — antes o parâmetro era ignorado e a lista abria inteira (furo dela 21/10)
@@ -667,6 +753,7 @@ export default function Empresas() {
                 </button>
                 {docAberto && (
                   <div className="space-y-3">
+                    <DocsGerados empresaId={editando.id} refreshKey={docResultado ? 1 : 0} />
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label>Tipo de documento</Label>
