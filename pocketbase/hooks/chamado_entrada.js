@@ -204,23 +204,37 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
     console.warn('[chamado] erro ntfy', errP)
   }
 
-  // 4) WHATSAPP via CallMeBot — grátis, ativação única no WhatsApp do
-  // destinatário (contato +34 623 78 64 49 + msg "I allow callmebot to send
-  // me messages" → devolve a APIKEY). Config por segredo; sem config, pula.
+  // 4) WHATSAPP — TextMeBot (preferido: sai do número próprio vinculado,
+  // qualquer destinatário; demo grátis 2 dias, US$ 1/mês depois) com fallback
+  // CallMeBot (grátis, só quem ativou o bot). Pedido dela 22/10: demo no
+  // WhatsApp do Luiz. Segredos: TEXTMEBOT_APIKEY + TEXTMEBOT_PHONE (destino)
+  // ou CALLMEBOT_PHONE + CALLMEBOT_APIKEY. Sem config, pula.
   try {
+    const tmKey = $secrets.get('TEXTMEBOT_APIKEY')
+    const tmDest = $secrets.get('TEXTMEBOT_PHONE')
     const waFone = $secrets.get('CALLMEBOT_PHONE')
     const waKey = $secrets.get('CALLMEBOT_APIKEY')
-    if (waFone && waKey) {
-      const msgWa =
-        '🔧 CHAMADO ' +
-        prioridade.toUpperCase() +
-        ' — ' +
-        nomeEmp +
-        '\nPatrimônio: ' +
-        patrimonio +
-        (setor ? '\nSetor: ' + setor : '') +
-        '\nDefeito: ' +
-        String(descricao || '').slice(0, 200)
+    const msgWa =
+      '🔧 CHAMADO ' +
+      prioridade.toUpperCase() +
+      ' — ' +
+      nomeEmp +
+      '\nPatrimônio: ' +
+      patrimonio +
+      (setor ? '\nSetor: ' + setor : '') +
+      '\nDefeito: ' +
+      String(descricao || '').slice(0, 200)
+    if (tmKey && tmDest) {
+      const urlTm =
+        'https://api.textmebot.com/send.php?recipient=' +
+        encodeURIComponent(tmDest) +
+        '&apikey=' +
+        encodeURIComponent(tmKey) +
+        '&text=' +
+        encodeURIComponent(msgWa)
+      const rT = $http.send({ url: urlTm, method: 'GET' })
+      console.log('[chamado] whatsapp textmebot', rT.statusCode, nova.id)
+    } else if (waFone && waKey) {
       const urlWa =
         'https://api.callmebot.com/whatsapp.php?phone=' +
         encodeURIComponent(waFone) +
@@ -231,7 +245,7 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
       const rW = $http.send({ url: urlWa, method: 'GET' })
       console.log('[chamado] whatsapp callmebot', rW.statusCode, nova.id)
     } else {
-      console.warn('[chamado] sem CALLMEBOT_PHONE/APIKEY — whatsapp não enviado')
+      console.warn('[chamado] sem whatsapp configurado (TEXTMEBOT ou CALLMEBOT) — não enviado')
     }
   } catch (errW) {
     console.warn('[chamado] erro whatsapp', errW)
