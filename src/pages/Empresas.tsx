@@ -790,7 +790,22 @@ export default function Empresas() {
                               },
                             )
                             const data = await res.json()
-                            setDocResultado(data)
+                            if (data.ok === true) {
+                              setDocResultado(data)
+                            } else if (data.conferencia?.problemas?.length) {
+                              setDocResultado({ ok: false, problemas: data.conferencia.problemas })
+                            } else {
+                              setDocResultado({
+                                ok: false,
+                                problemas: [
+                                  {
+                                    campo: 'geral',
+                                    problema: data.error || 'Falha ao gerar — tente novamente.',
+                                    sugestao: '',
+                                  },
+                                ],
+                              })
+                            }
                           } catch {
                             setDocResultado({
                               ok: false,
