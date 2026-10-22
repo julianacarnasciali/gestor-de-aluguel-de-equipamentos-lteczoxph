@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { brl } from '@/services/gestor'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 
 const TIPOS: Record<string, string> = {
@@ -35,6 +36,7 @@ interface Edit {
   ip: string
   descricao: string
   contrato: string
+  vlr_mensal: string
 }
 
 const vazio = (contrato: string): Edit => ({
@@ -46,6 +48,7 @@ const vazio = (contrato: string): Edit => ({
   ip: '',
   descricao: '',
   contrato,
+  vlr_mensal: '',
 })
 
 export function DialogEquipamentosEmpresa({
@@ -93,6 +96,7 @@ export function DialogEquipamentosEmpresa({
         ip: edit.ip,
         descricao: edit.descricao,
         contrato: edit.contrato || null,
+        vlr_mensal: edit.vlr_mensal === '' ? null : Number(edit.vlr_mensal.replace(',', '.')),
       }
       if (edit.id) await updateEquipamento(edit.id, payload)
       else {
@@ -208,6 +212,19 @@ export function DialogEquipamentosEmpresa({
                 />
               </div>
             </div>
+            <div className="space-y-1">
+              <Label>Valor mensal negociado (R$)</Label>
+              <Input
+                inputMode="decimal"
+                value={edit.vlr_mensal}
+                onChange={(e) => setEdit({ ...edit, vlr_mensal: e.target.value })}
+                placeholder="ex.: 100 — deixe vazio se não se aplica"
+              />
+              <p className="text-xs text-muted-foreground">
+                Preço fechado para ESTA máquina. No fechamento, se alguma máquina do contrato tiver
+                valor aqui, o total de impressoras passa a ser a soma dos valores das máquinas.
+              </p>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setEdit(null)}>
                 Cancelar
@@ -244,6 +261,9 @@ export function DialogEquipamentosEmpresa({
                     {eq.numero_serie ? `série ${eq.numero_serie}` : 'sem série'}
                     {eq.marca_modelo ? ` · ${eq.marca_modelo}` : ''}
                     {eq.ip ? ` · IP ${eq.ip}` : ''}
+                    {(eq as unknown as { vlr_mensal?: number }).vlr_mensal != null
+                      ? ` · ${brl((eq as unknown as { vlr_mensal?: number }).vlr_mensal)}/mês`
+                      : ''}
                   </p>
                 </div>
                 <button
@@ -260,6 +280,10 @@ export function DialogEquipamentosEmpresa({
                       ip: eq.ip || '',
                       descricao: eq.descricao || '',
                       contrato: eq.contrato || '',
+                      vlr_mensal:
+                        (eq as unknown as { vlr_mensal?: number }).vlr_mensal != null
+                          ? String((eq as unknown as { vlr_mensal?: number }).vlr_mensal)
+                          : '',
                     })
                   }
                 >

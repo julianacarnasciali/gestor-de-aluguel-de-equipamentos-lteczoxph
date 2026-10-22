@@ -72,13 +72,32 @@ export default function Fechamentos() {
     const paginas = leiturasDoContrato.reduce((a, l) => a + (l.paginas_mes ?? 0), 0)
     const excedentes = Math.max(0, paginas - (c.paginas_contratadas ?? 0))
     const vlrExcedentes = excedentes * (c.preco_excedente ?? 0)
+    // VALOR POR MÁQUINA (pedido dela 21/10): se QUALQUER impressora do contrato
+    // tiver vlr_mensal lançado, o total de impressoras vira a SOMA dos valores
+    // das máquinas ativas (ignora a mensalidade do contrato). Se nenhuma tiver,
+    // mantém exatamente o que é cobrado hoje (mensalidade + dispositivos etc.).
+    const comValor = eqsDoContrato.filter(
+      (e) => (e as unknown as { vlr_mensal?: number }).vlr_mensal != null,
+    )
+    const somaMaquinas = eqsDoContrato.reduce(
+      (a, e) => a + ((e as unknown as { vlr_mensal?: number }).vlr_mensal ?? 0),
+      0,
+    )
+    const vlrImpressoras = comValor.length > 0 ? somaMaquinas : (c.mensalidade ?? 0)
     const fixo =
-      (c.mensalidade ?? 0) +
-      (c.vlr_dispositivos ?? 0) +
-      (c.vlr_servidores ?? 0) +
-      (c.vlr_servicos ?? 0)
+      vlrImpressoras + (c.vlr_dispositivos ?? 0) + (c.vlr_servidores ?? 0) + (c.vlr_servicos ?? 0)
     const subtotal = fixo + vlrExcedentes
-    return { eqs: eqsDoContrato, paginas, excedentes, vlrExcedentes, fixo, subtotal }
+    return {
+      eqs: eqsDoContrato,
+      paginas,
+      excedentes,
+      vlrExcedentes,
+      fixo,
+      subtotal,
+      vlrImpressoras,
+      somaMaquinas,
+      temValoresPorMaquina: comValor.length > 0,
+    }
   }
 
   const abrirModal = (c: Contrato) => {
@@ -117,7 +136,7 @@ export default function Fechamentos() {
         competencia,
         paginas_consumidas: x.paginas,
         paginas_excedentes: x.excedentes,
-        vlr_impressoras: modal.mensalidade ?? 0,
+        vlr_impressoras: x.vlrImpressoras,
         vlr_excedentes: x.vlrExcedentes,
         vlr_dispositivos: modal.vlr_dispositivos ?? 0,
         vlr_servidores: modal.vlr_servidores ?? 0,
@@ -392,7 +411,12 @@ export default function Fechamentos() {
                   <>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <p>
-                        Impressoras: <strong>{brl(modal.mensalidade)}</strong>
+                        Impressoras:{' '}
+                        <strong>
+                          {x.temValoresPorMaquina
+                            ? `${brl(x.somaMaquinas)} (soma das ${x.eqs.length} máquinas)`
+                            : brl(modal.mensalidade)}
+                        </strong>
                       </p>
                       <p>
                         Dispositivos: <strong>{brl(modal.vlr_dispositivos)}</strong>

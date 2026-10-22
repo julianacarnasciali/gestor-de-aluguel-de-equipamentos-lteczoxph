@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T21:19:45.846Z",
+  "generatedAt": "2026-10-22T00:23:39.276Z",
   "collections": [
     {
       "name": "users",
@@ -503,6 +503,12 @@
         {
           "name": "substituido_em",
           "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "vlr_mensal",
+          "type": "number",
           "required": false,
           "system": false
         }

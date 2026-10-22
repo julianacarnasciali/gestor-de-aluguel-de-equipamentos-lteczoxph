@@ -26,6 +26,7 @@ const vazio = {
   ip: '',
   descricao: '',
   contrato: '',
+  vlr_mensal: '',
 }
 
 export function DialogEquipamento({
@@ -64,6 +65,10 @@ export function DialogEquipamento({
           ip: e.ip || '',
           descricao: e.descricao || '',
           contrato: e.contrato || '',
+          vlr_mensal:
+            (e as unknown as { vlr_mensal?: number }).vlr_mensal != null
+              ? String((e as unknown as { vlr_mensal?: number }).vlr_mensal)
+              : '',
         })
       } else {
         setForm({ ...vazio })
@@ -89,6 +94,7 @@ export function DialogEquipamento({
         ip: form.ip,
         descricao: form.descricao,
         contrato: form.contrato || null,
+        vlr_mensal: form.vlr_mensal === '' ? null : Number(form.vlr_mensal.replace(',', '.')),
       }
       if (estado.eq) {
         await updateEquipamento(estado.eq.id, payload)
@@ -220,6 +226,19 @@ export function DialogEquipamento({
           <div className="space-y-1">
             <Label>Descrição</Label>
             <Input value={form.descricao} onChange={(e) => set('descricao', e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Valor mensal negociado (R$)</Label>
+            <Input
+              inputMode="decimal"
+              value={form.vlr_mensal}
+              onChange={(e) => set('vlr_mensal', e.target.value)}
+              placeholder="ex.: 100 — deixe vazio se não se aplica"
+            />
+            <p className="text-xs text-muted-foreground">
+              Preço fechado para ESTA máquina. No fechamento, se alguma máquina do contrato tiver
+              valor aqui, o total de impressoras passa a ser a soma dos valores das máquinas.
+            </p>
           </div>
           {emTroca ? (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-3">
