@@ -19,6 +19,8 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DialogEquipamentosEmpresa } from '@/components/DialogEquipamentosEmpresa'
 import { pbExport as pb } from '@/services/gestor'
+import { gerarPdfContrato } from '@/lib/pdf-contrato'
+import { gerarDocxContrato } from '@/lib/docx-contrato'
 import { Package, Plus, FileText } from 'lucide-react'
 import { consultarCnpj } from '@/lib/cnpj'
 const MESES: Record<string, string> = {
@@ -134,9 +136,35 @@ function DocsGerados({ empresaId, refreshKey }: { empresaId: string; refreshKey?
               })}
             </button>
             {aberto === d.id && (
-              <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded border bg-white p-2 text-[11px] text-slate-700">
-                {carregando ? 'Abrindo…' : texto}
-              </pre>
+              <>
+                <div className="mt-1 flex gap-2">
+                  <button
+                    className="text-xs text-teal-700 hover:underline"
+                    onClick={() =>
+                      gerarPdfContrato(
+                        texto,
+                        `${ROTULOS[d.tipo] || d.tipo}${d.numero ? '-' + d.numero.replace('/', '-') : ''}.pdf`,
+                      )
+                    }
+                  >
+                    ⬇ PDF
+                  </button>
+                  <button
+                    className="text-xs text-indigo-700 hover:underline"
+                    onClick={() =>
+                      gerarDocxContrato(
+                        texto,
+                        `${ROTULOS[d.tipo] || d.tipo}${d.numero ? '-' + d.numero.replace('/', '-') : ''}.docx`,
+                      )
+                    }
+                  >
+                    ⬇ DOCX
+                  </button>
+                </div>
+                <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded border bg-white p-2 text-[11px] text-slate-700">
+                  {carregando ? 'Abrindo…' : texto}
+                </pre>
+              </>
             )}
           </div>
         ))}

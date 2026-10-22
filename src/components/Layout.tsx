@@ -11,6 +11,7 @@ const links = [
   { to: '/etiquetas', label: 'Etiquetas' },
   { to: '/chamados', label: 'Chamados' },
   { to: '/fechamentos', label: 'Fechamento' },
+  { to: '/contratos', label: 'Contratos' },
   { to: '/financeiro', label: 'Financeiro' },
   { to: '/servico-avulso', label: 'Serviço avulso' },
   { to: '/agente', label: 'Assistente IA' },

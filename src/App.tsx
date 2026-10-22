@@ -19,6 +19,7 @@ import Patrimonio from './pages/Patrimonio'
 import ChamadoPublico from './pages/ChamadoPublico'
 import Chamados from './pages/Chamados'
 import Etiquetas from './pages/Etiquetas'
+import Contratos from './pages/Contratos'
 import LeituraPublica from './pages/LeituraPublica'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -78,6 +79,14 @@ const sistemaRoutes = (
         element={
           <RequireAuth>
             <Fechamentos />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/contratos"
+        element={
+          <RequireAuth>
+            <Contratos />
           </RequireAuth>
         }
       />
