@@ -20,6 +20,9 @@ import ChamadoPublico from './pages/ChamadoPublico'
 import Chamados from './pages/Chamados'
 import Etiquetas from './pages/Etiquetas'
 import Contratos from './pages/Contratos'
+import Agenda from './pages/Agenda'
+import Ordens from './pages/Ordens'
+import OsAssinar from './pages/OsAssinar'
 import LeituraPublica from './pages/LeituraPublica'
 import Layout from './components/Layout'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -40,6 +43,7 @@ const sistemaRoutes = (
     <Route path="/login" element={<Login />} />
     <Route path="/lcca" element={<Lcca />} />
     <Route path="/chamado" element={<ChamadoPublico />} />
+    <Route path="/os-assinar" element={<OsAssinar />} />
     <Route path="/leitura" element={<LeituraPublica />} />
     <Route element={<Layout />}>
       <Route
@@ -119,6 +123,22 @@ const sistemaRoutes = (
         element={
           <RequireAuth>
             <ServicoAvulso />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/agenda"
+        element={
+          <RequireAuth>
+            <Agenda />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/ordens"
+        element={
+          <RequireAuth>
+            <Ordens />
           </RequireAuth>
         }
       />

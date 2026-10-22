@@ -10,6 +10,8 @@ const links = [
   { to: '/patrimonio', label: 'Patrimônio' },
   { to: '/etiquetas', label: 'Etiquetas' },
   { to: '/chamados', label: 'Chamados' },
+  { to: '/agenda', label: 'Agenda' },
+  { to: '/ordens', label: 'Ordens de serviço' },
   { to: '/fechamentos', label: 'Fechamento' },
   { to: '/contratos', label: 'Contratos' },
   { to: '/financeiro', label: 'Financeiro' },

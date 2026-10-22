@@ -230,3 +230,58 @@ export const getFechamentosContrato = (contratoId: string) =>
 
 export const brl = (v: number) =>
   (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+// ---------- AGENDA + ORDENS DE SERVIÇO (módulos novos, pedido dela 22/10) ----------
+export interface AgendaItem {
+  id: string
+  empresa: string
+  titulo: string
+  tipo: 'visita_tecnica' | 'entrega_instalacao' | 'comercial' | 'outro'
+  data: string
+  hora: string
+  duracao_min: number
+  responsavel: 'luiz' | 'juliana' | 'ambos' | ''
+  endereco: string
+  descricao: string
+  status: 'agendado' | 'realizado' | 'cancelado'
+  os_gerada: boolean
+  expand?: { empresa?: Empresa }
+}
+
+export const getAgenda = () =>
+  pb.collection('agenda').getFullList<AgendaItem>({ sort: 'data', expand: 'empresa' })
+export const createAgenda = (data: Record<string, unknown>) =>
+  pb.collection('agenda').create<AgendaItem>(data)
+export const updateAgenda = (id: string, data: Record<string, unknown>) =>
+  pb.collection('agenda').update<AgendaItem>(id, data)
+
+export interface OrdemServico {
+  id: string
+  numero: string
+  empresa: string
+  agenda: string
+  tipo: 'manutencao' | 'instalacao' | 'entrega' | 'visita_tecnica' | 'outro'
+  data: string
+  descricao: string
+  tecnico: string
+  valor_pecas: number
+  valor_servico: number
+  valor_total: number
+  gerar_cobranca: boolean
+  cobranca_gerada: boolean
+  servico_id: string
+  data_vencimento: string
+  status: 'aberta' | 'aguardando_assinatura' | 'assinada' | 'faturada' | 'cancelada'
+  assinatura_nome: string
+  assinatura_cargo: string
+  assinatura_imagem: string
+  assinado_em: string
+  expand?: { empresa?: Empresa }
+}
+
+export const getOrdens = () =>
+  pb.collection('ordens_servico').getFullList<OrdemServico>({ sort: '-created', expand: 'empresa' })
+export const createOrdem = (data: Record<string, unknown>) =>
+  pb.collection('ordens_servico').create<OrdemServico>(data)
+export const updateOrdem = (id: string, data: Record<string, unknown>) =>
+  pb.collection('ordens_servico').update<OrdemServico>(id, data)
