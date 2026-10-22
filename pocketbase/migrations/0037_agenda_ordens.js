@@ -7,7 +7,15 @@ migrate(
   (app) => {
     const empresasId = app.findCollectionByNameOrId('empresas').id
 
-    if (!app.findCollectionByNameOrId('agenda')) {
+    // findCollectionByNameOrId LANÇA quando não existe (não retorna vazio) —
+    // checa via try/catch (lição das migs copiadas)
+    let temAgenda = true
+    try {
+      temAgenda = !!app.findCollectionByNameOrId('agenda')
+    } catch (_) {
+      temAgenda = false
+    }
+    if (!temAgenda) {
       const agenda = new Collection({
         name: 'agenda',
         type: 'base',
@@ -58,7 +66,13 @@ migrate(
       app.save(agenda)
     }
 
-    if (!app.findCollectionByNameOrId('ordens_servico')) {
+    let temOs = true
+    try {
+      temOs = !!app.findCollectionByNameOrId('ordens_servico')
+    } catch (_) {
+      temOs = false
+    }
+    if (!temOs) {
       const os = new Collection({
         name: 'ordens_servico',
         type: 'base',

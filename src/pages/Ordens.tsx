@@ -228,7 +228,9 @@ export default function Ordens() {
     if (o.assinatura_imagem) {
       try {
         doc.addImage(o.assinatura_imagem, 'PNG', 40, y, 180, 60)
-      } catch (_) {}
+      } catch (_) {
+        // imagem inválida — segue sem a assinatura desenhada
+      }
       doc.setTextColor(...CINZA)
       doc.setFontSize(8)
       doc.text('Assinado digitalmente em ' + String(o.assinado_em || '').slice(0, 10), 40, y + 70)
