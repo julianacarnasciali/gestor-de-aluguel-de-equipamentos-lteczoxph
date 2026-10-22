@@ -53,12 +53,12 @@ routerAdd('POST', '/backend/v1/contrato/gerar', (e) => {
 
     // ---- 2. CONFERÊNCIA DO AGENTE DE IA (campos preenchidos + ortografia) ----
     const promptConferencia =
-      'Você é revisor jurídico-fiscal de contratos da LCCA Tech (locação de impressoras). ' +
-      'Analise o JSON de dados do documento a seguir. Responda APENAS com um JSON válido, sem texto fora dele, no formato: ' +
-      '{"ok": true|false, "problemas": [{"campo": "...", "problema": "...", "sugestao": "..."}], "correcoes_ortografia": [{"campo": "...", "de": "...", "para": "..."}]}. ' +
-      'Cheque: (1) campos obrigatórios vazios ou com placeholder; (2) erros de ORTOGRAFIA em nomes, cargos e textos livres (sugira a correção); ' +
-      '(3) CNPJ/CPF com formato plausível; (4) valores monetários e números plausíveis; (5) consistência (ex.: aditivo de inclusão exige equipamentos). ' +
-      'Se tudo estiver certo, ok=true e arrays vazios. Dados: ' +
+      'Você é revisor de contratos da LCCA Tech. Analise o JSON de dados abaixo. ' +
+      'CAMPOS DO SISTEMA (nunca são problema, ignore): razao_locadora, cnpj_locadora, resp_locadora, cargo_locadora, end_locadora, email_locadora. ' +
+      'Responda APENAS com JSON válido: {"ok": true|false, "problemas": [{"campo","problema","sugestao"}], "correcoes_ortografia": [{"campo","de","para"}]}. ' +
+      'BLOQUEIA (vai em "problemas") SOMENTE: campo obrigatório do usuário vazio ou com placeholder; CNPJ/CPF com quantidade errada de dígitos; aditivo de inclusão sem equipamentos; aditivo de exclusão sem equipamentos removidos. ' +
+      'NÃO bloqueia por acento, maiúscula/minúscula, mês minúsculo, CEP sem hífen ou estilo — esses casos vão em "correcoes_ortografia" com de/para exatos (a correção é aplicada automaticamente). ' +
+      'Se nada bloqueia, ok=true (mesmo com correções pendentes). Dados: ' +
       JSON.stringify(dados)
 
     const respAI = $ai.chat({
