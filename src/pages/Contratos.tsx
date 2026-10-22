@@ -37,6 +37,11 @@ export default function Contratos() {
   const [texto, setTexto] = useState('')
   const [filtro, setFiltro] = useState<'todos' | 'assinados' | 'sem_assinatura'>('todos')
   const [subindo, setSubindo] = useState<string | null>(null)
+  // ASSINATURA GOVBR (pedido dela 23/10): a API oficial é só p/ órgãos públicos
+  // (gov.br/governodigital) — o caminho real p/ empresa privada é o Portal de
+  // Assinaturas gov.br (assinadordigital.gov.br): cliente assina lá (conta
+  // prata/ouro, assinatura avançada Lei 14.063/2020) e sobe o PDF assinado aqui.
+  const [govbr, setGovbr] = useState<Doc | null>(null)
 
   const carregar = () => {
     pb.collection('documentos_contrato')
@@ -175,20 +180,30 @@ export default function Contratos() {
                       📎 Assinado
                     </Button>
                   ) : (
-                    <label className="cursor-pointer">
-                      <input
-                        type="file"
-                        accept="application/pdf,image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0]
-                          if (f) uploadAssinado(d.id, f)
-                        }}
-                      />
-                      <span className="inline-flex h-9 items-center justify-center rounded-md border border-amber-500 bg-background px-3 text-sm font-medium text-amber-700 hover:bg-amber-50">
-                        {subindo === d.id ? 'Enviando…' : '⬆ Enviar assinado'}
-                      </span>
-                    </label>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-sky-600 text-sky-700 hover:bg-sky-50"
+                        onClick={() => setGovbr(d)}
+                      >
+                        🇧🇷 Assinar via GovBR
+                      </Button>
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept="application/pdf,image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0]
+                            if (f) uploadAssinado(d.id, f)
+                          }}
+                        />
+                        <span className="inline-flex h-9 items-center justify-center rounded-md border border-amber-500 bg-background px-3 text-sm font-medium text-amber-700 hover:bg-amber-50">
+                          {subindo === d.id ? 'Enviando…' : '⬆ Enviar assinado'}
+                        </span>
+                      </label>
+                    </>
                   )}
                   {aberto === d.id && (
                     <div className="w-full">
@@ -201,6 +216,92 @@ export default function Contratos() {
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {/* MODAL ASSINATURA GOVBR — passo a passo p/ o cliente */}
+      {govbr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-w-lg w-full rounded-xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <h3 className="text-lg font-bold">
+                🇧🇷 Assinar via GovBR — {ROTULOS[govbr.tipo] || govbr.tipo}
+                {govbr.numero ? ` nº ${govbr.numero}` : ''}
+              </h3>
+              <button
+                className="text-slate-400 hover:text-slate-600"
+                onClick={() => setGovbr(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-3">
+              Documento: <b>{govbr.expand?.empresa?.nome || '—'}</b>
+            </p>
+            <ol className="list-decimal pl-5 text-sm text-slate-700 space-y-2 mb-4">
+              <li>
+                Baixe o PDF do contrato (botão <b>PDF</b> na linha dele).
+              </li>
+              <li>
+                Mande o PDF para o cliente e peça para ele acessar{' '}
+                <a
+                  className="text-sky-700 underline"
+                  href="https://assinadordigital.gov.br"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  assinadordigital.gov.br
+                </a>{' '}
+                com a conta gov.br dele (precisa ser <b>nível prata ou ouro</b> — conta bronze não
+                assina).
+              </li>
+              <li>
+                Lá ele clica em <b>"Nova assinatura"</b>, sobe o PDF, coloca o nome dele como
+                signatário e assina. É <b>gratuito</b> e tem validade jurídica (assinatura
+                eletrônica avançada — Lei 14.063/2020).
+              </li>
+              <li>
+                O portal devolve o <b>PDF assinado</b> — o cliente te manda de volta (WhatsApp ou
+                e-mail).
+              </li>
+              <li>
+                Você sobe o PDF assinado aqui embaixo: o contrato fica marcado como <b>Assinado</b>{' '}
+                com a data, e o arquivo fica guardado no sistema. Qualquer pessoa pode conferir a
+                assinatura em{' '}
+                <a
+                  className="text-sky-700 underline"
+                  href="https://validar.iti.gov.br"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  validar.iti.gov.br
+                </a>
+                .
+              </li>
+            </ol>
+            <label className="cursor-pointer block">
+              <input
+                type="file"
+                accept="application/pdf,image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) {
+                    uploadAssinado(govbr.id, f)
+                    setGovbr(null)
+                  }
+                }}
+              />
+              <span className="inline-flex w-full h-10 items-center justify-center rounded-md bg-teal-600 px-3 text-sm font-bold text-white hover:bg-teal-700">
+                {subindo ? 'Enviando…' : '⬆ Subir o PDF assinado (passo 5)'}
+              </span>
+            </label>
+            <p className="text-xs text-slate-400 mt-2">
+              Nota: a API oficial do gov.br para assinatura automática dentro de sistemas é
+              exclusiva de órgãos públicos — por isso o fluxo usa o portal oficial, que dá o mesmo
+              resultado jurídico.
+            </p>
+          </div>
         </div>
       )}
     </div>
