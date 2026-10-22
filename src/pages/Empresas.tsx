@@ -371,6 +371,14 @@ export default function Empresas() {
                       >
                         <Package className="h-3 w-3 mr-1" /> Equipamentos
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 border-teal-600 text-teal-700 hover:bg-teal-50"
+                        onClick={() => window.open(`/patrimonio?empresa=${e.id}`, '_blank')}
+                      >
+                        Patrimônios
+                      </Button>
                       {(() => {
                         const eqs = equipamentos.filter((q) => q.empresa === e.id)
                         if (eqs.length === 0) return null

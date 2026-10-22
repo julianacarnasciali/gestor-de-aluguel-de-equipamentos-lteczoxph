@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getEquipamentosPatrimonio, type Equipamento } from '@/services/gestor'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,11 @@ export default function Patrimonio() {
   const [soAtivos, setSoAtivos] = useState(true)
   // edição direto da linha (pedido dela 15/10): clicou na linha → diálogo
   const [dialog, setDialog] = useState<DialogEquipState | null>(null)
+  // FILTRO POR EMPRESA (pedido dela 21/10): vem da URL (?empresa=ID) quando
+  // aberto pelo card da empresa, ou pelo seletor aqui na tela
+  const [params, setParams] = useSearchParams()
+  const empresaFiltro = params.get('empresa') ?? ''
+  const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
 
   const abrirEdicao = (e: Equipamento) => {
     const emp = e.expand?.empresa
@@ -54,7 +60,19 @@ export default function Patrimonio() {
 
   useEffect(() => {
     getEquipamentosPatrimonio()
-      .then(setEqs)
+      .then((todos) => {
+        setEqs(todos)
+        // nomes das empresas para o seletor de filtro
+        const mapa = new Map<string, string>()
+        for (const e of todos) {
+          if (e.expand?.empresa?.nome) mapa.set(e.empresa, e.expand.empresa.nome)
+        }
+        setEmpresas(
+          [...mapa.entries()]
+            .map(([id, nome]) => ({ id, nome }))
+            .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+        )
+      })
       .finally(() => setCarregando(false))
   }, [])
 
@@ -62,6 +80,7 @@ export default function Patrimonio() {
     const q = busca.trim().toLowerCase()
     return eqs
       .filter((e) => (soAtivos ? e.ativo : true))
+      .filter((e) => (empresaFiltro ? e.empresa === empresaFiltro : true))
       .filter((e) => {
         if (!q) return true
         const emp = e.expand?.empresa?.nome ?? ''
@@ -71,7 +90,7 @@ export default function Patrimonio() {
           .toLowerCase()
           .includes(q)
       })
-  }, [eqs, busca, soAtivos])
+  }, [eqs, busca, soAtivos, empresaFiltro])
 
   const resumo = useMemo(() => {
     const ativos = eqs.filter((e) => e.ativo)
@@ -87,13 +106,39 @@ export default function Patrimonio() {
     <div className="container mx-auto py-8 px-4">
       <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Patrimônio</h1>
+          <h1 className="text-2xl font-bold">
+            Patrimônio
+            {empresaFiltro && (
+              <span className="text-base font-normal text-teal-700">
+                {' '}
+                — {empresas.find((x) => x.id === empresaFiltro)?.nome ?? 'empresa'}
+              </span>
+            )}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            {resumo.total} equipamentos ativos · {resumo.empresas} empresas · {resumo.contratos}{' '}
-            contratos · {resumo.inativos} históricos
+            {lista.length} equipamento(s){' '}
+            {empresaFiltro ? 'desta empresa' : `ativos de ${resumo.empresas} empresas`} ·{' '}
+            {resumo.contratos} contratos · {resumo.inativos} históricos
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            className="h-9 rounded-md border bg-background px-3 text-sm"
+            value={empresaFiltro}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v) params.set('empresa', v)
+              else params.delete('empresa')
+              setParams(params, { replace: true })
+            }}
+          >
+            <option value="">Todas as empresas</option>
+            {empresas.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.nome}
+              </option>
+            ))}
+          </select>
           <Input
             className="w-72"
             value={busca}
