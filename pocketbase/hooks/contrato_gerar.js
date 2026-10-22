@@ -13,7 +13,7 @@ routerAdd('POST', '/backend/v1/contrato/gerar', (e) => {
     return e.badRequestError('tipo invalido')
 
   try {
-    const emp = app.findRecordById('empresas', empresaId)
+    const emp = $app.findRecordById('empresas', empresaId)
 
     // ---- 1. monta o dicionário de dados a partir da empresa + body ----
     const eqsBody = body.equipamentos || []
@@ -173,7 +173,8 @@ routerAdd('POST', '/backend/v1/contrato/gerar', (e) => {
     }
 
     // ---- 5. grava o rascunho ----
-    const rec = app.newRecord('documentos_contrato')
+    const col = $app.findCollectionByNameOrId('documentos_contrato')
+    const rec = new Record(col)
     rec.set('empresa', empresaId)
     rec.set('tipo', tipo)
     rec.set('dados', dados)
@@ -181,7 +182,7 @@ routerAdd('POST', '/backend/v1/contrato/gerar', (e) => {
     rec.set('texto', corpo)
     rec.set('status', 'gerado')
     rec.set('numero', dados.numero)
-    app.save(rec)
+    $app.save(rec)
 
     return e.json(200, { ok: true, conferencia, documento: { id: rec.id, tipo, texto: corpo } })
   } catch (err) {
