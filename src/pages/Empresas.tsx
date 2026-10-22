@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   getEmpresas,
   getContratos,
@@ -58,6 +59,9 @@ const empresaNova = (): Empresa => ({
 })
 
 export default function Empresas() {
+  // ?abrir=ID (quadradinho "Contrato" do dashboard): abre o diálogo da empresa
+  // direto — antes o parâmetro era ignorado e a lista abria inteira (furo dela 21/10)
+  const [params, setParams] = useSearchParams()
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [reajustes, setReajustes] = useState<Record<string, string>>({})
   const [carregando, setCarregando] = useState(true)
@@ -192,8 +196,17 @@ export default function Empresas() {
           mapa[c.empresa] = `${MESES[c.reajuste_mes] ?? c.reajuste_mes}${pct}`
         }
         setReajustes(mapa)
+        // ?abrir=ID na URL: abre o diálogo da empresa correspondente
+        const alvo = params.get('abrir')
+        if (alvo) {
+          const e = emps.find((x) => x.id === alvo)
+          if (e) abrirForm(e)
+          params.delete('abrir')
+          setParams(params, { replace: true })
+        }
       })
       .finally(() => setCarregando(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const abrirForm = (e: Empresa) => {
