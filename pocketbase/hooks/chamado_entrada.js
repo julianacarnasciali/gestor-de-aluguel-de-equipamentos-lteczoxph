@@ -53,13 +53,16 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
   nova.set('prioridade', prioridade)
   nova.set('status', 'aberto')
 
-  // video precisa existir FORA do try (usado no e-mail depois — lição 13/10)
+  // video/foto precisam existir FORA do try (usados no e-mail depois —
+  // lição 13/10 valia só p/ video; foto escapou e derrubava o e-mail c/
+  // ReferenceError em TODO chamado — achado no teste E2E 22/10)
   let video = null
+  let foto = null
   try {
     const files = (info && info.files) || {}
     video = files['video'] || null
     if (video) nova.set('video', video)
-    const foto = files['foto'] || null
+    foto = files['foto'] || null
     if (foto) nova.set('foto', foto)
   } catch (errF) {
     console.warn('[chamado] midia nao anexada', errF)
