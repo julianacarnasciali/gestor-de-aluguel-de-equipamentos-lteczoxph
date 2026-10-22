@@ -37,6 +37,7 @@ interface Edit {
   descricao: string
   contrato: string
   vlr_mensal: string
+  franquia_paginas: string
 }
 
 const vazio = (contrato: string): Edit => ({
@@ -49,6 +50,7 @@ const vazio = (contrato: string): Edit => ({
   descricao: '',
   contrato,
   vlr_mensal: '',
+  franquia_paginas: '',
 })
 
 export function DialogEquipamentosEmpresa({
@@ -97,6 +99,8 @@ export function DialogEquipamentosEmpresa({
         descricao: edit.descricao,
         contrato: edit.contrato || null,
         vlr_mensal: edit.vlr_mensal === '' ? null : Number(edit.vlr_mensal.replace(',', '.')),
+        franquia_paginas:
+          edit.franquia_paginas === '' ? null : Number(edit.franquia_paginas.replace(',', '.')),
       }
       if (edit.id) await updateEquipamento(edit.id, payload)
       else {
@@ -225,6 +229,19 @@ export function DialogEquipamentosEmpresa({
                 valor aqui, o total de impressoras passa a ser a soma dos valores das máquinas.
               </p>
             </div>
+            <div className="space-y-1">
+              <Label>Franquia de páginas desta máquina</Label>
+              <Input
+                inputMode="numeric"
+                value={edit.franquia_paginas}
+                onChange={(e) => setEdit({ ...edit, franquia_paginas: e.target.value })}
+                placeholder="ex.: 2000 — deixe vazio para usar a franquia do contrato"
+              />
+              <p className="text-xs text-muted-foreground">
+                Preencha só quando o contrato for franquia POR MÁQUINA: o excedente é calculado
+                isolado nesta máquina (o que sobra na franquia das outras não cobre).
+              </p>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setEdit(null)}>
                 Cancelar
@@ -264,6 +281,9 @@ export function DialogEquipamentosEmpresa({
                     {(eq as unknown as { vlr_mensal?: number }).vlr_mensal != null
                       ? ` · ${brl((eq as unknown as { vlr_mensal?: number }).vlr_mensal)}/mês`
                       : ''}
+                    {(eq as unknown as { franquia_paginas?: number }).franquia_paginas != null
+                      ? ` · franquia ${(eq as unknown as { franquia_paginas?: number }).franquia_paginas.toLocaleString('pt-BR')} págs`
+                      : ''}
                   </p>
                 </div>
                 <button
@@ -283,6 +303,12 @@ export function DialogEquipamentosEmpresa({
                       vlr_mensal:
                         (eq as unknown as { vlr_mensal?: number }).vlr_mensal != null
                           ? String((eq as unknown as { vlr_mensal?: number }).vlr_mensal)
+                          : '',
+                      franquia_paginas:
+                        (eq as unknown as { franquia_paginas?: number }).franquia_paginas != null
+                          ? String(
+                              (eq as unknown as { franquia_paginas?: number }).franquia_paginas,
+                            )
                           : '',
                     })
                   }

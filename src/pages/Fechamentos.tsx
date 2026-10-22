@@ -70,7 +70,27 @@ export default function Fechamentos() {
       eqsDoContrato.some((e) => e.id === l.equipamento),
     )
     const paginas = leiturasDoContrato.reduce((a, l) => a + (l.paginas_mes ?? 0), 0)
-    const excedentes = Math.max(0, paginas - (c.paginas_contratadas ?? 0))
+    // FRANQUIA POR MÁQUINA (pedido dela 21/10): se QUALQUER impressora tiver
+    // franquia_paginas, o excedente é calculado MÁQUINA A MÁQUINA (o que sobra
+    // na franquia de uma não cobre a outra). Sem isso, vale a franquia total
+    // do contrato (paginas_contratadas), como sempre foi.
+    const comFranquia = eqsDoContrato.filter(
+      (e) => (e as unknown as { franquia_paginas?: number }).franquia_paginas != null,
+    )
+    let excedentes = 0
+    if (comFranquia.length > 0) {
+      for (const e of eqsDoContrato) {
+        const l = leiturasDoContrato.find((x) => x.equipamento === e.id)
+        const pags = l?.paginas_mes ?? 0
+        const franquia =
+          (e as unknown as { franquia_paginas?: number }).franquia_paginas ??
+          c.paginas_contratadas ??
+          0
+        excedentes += Math.max(0, pags - franquia)
+      }
+    } else {
+      excedentes = Math.max(0, paginas - (c.paginas_contratadas ?? 0))
+    }
     const vlrExcedentes = excedentes * (c.preco_excedente ?? 0)
     // VALOR POR MÁQUINA (pedido dela 21/10): se QUALQUER impressora do contrato
     // tiver vlr_mensal lançado, o total de impressoras vira a SOMA dos valores
@@ -97,6 +117,7 @@ export default function Fechamentos() {
       vlrImpressoras,
       somaMaquinas,
       temValoresPorMaquina: comValor.length > 0,
+      franquiaPorMaquina: comFranquia.length > 0,
     }
   }
 
@@ -430,6 +451,11 @@ export default function Fechamentos() {
                       <p>
                         Excedentes ({x.excedentes.toLocaleString('pt-BR')} págs):{' '}
                         <strong>{brl(x.vlrExcedentes)}</strong>
+                        {x.franquiaPorMaquina && (
+                          <span className="block text-xs text-amber-700">
+                            cálculo por máquina (franquia individual)
+                          </span>
+                        )}
                       </p>
                       <p>
                         Subtotal: <strong>{brl(x.subtotal)}</strong>

@@ -27,6 +27,7 @@ const vazio = {
   descricao: '',
   contrato: '',
   vlr_mensal: '',
+  franquia_paginas: '',
 }
 
 export function DialogEquipamento({
@@ -69,6 +70,10 @@ export function DialogEquipamento({
             (e as unknown as { vlr_mensal?: number }).vlr_mensal != null
               ? String((e as unknown as { vlr_mensal?: number }).vlr_mensal)
               : '',
+          franquia_paginas:
+            (e as unknown as { franquia_paginas?: number }).franquia_paginas != null
+              ? String((e as unknown as { franquia_paginas?: number }).franquia_paginas)
+              : '',
         })
       } else {
         setForm({ ...vazio })
@@ -95,6 +100,8 @@ export function DialogEquipamento({
         descricao: form.descricao,
         contrato: form.contrato || null,
         vlr_mensal: form.vlr_mensal === '' ? null : Number(form.vlr_mensal.replace(',', '.')),
+        franquia_paginas:
+          form.franquia_paginas === '' ? null : Number(form.franquia_paginas.replace(',', '.')),
       }
       if (estado.eq) {
         await updateEquipamento(estado.eq.id, payload)
@@ -238,6 +245,19 @@ export function DialogEquipamento({
             <p className="text-xs text-muted-foreground">
               Preço fechado para ESTA máquina. No fechamento, se alguma máquina do contrato tiver
               valor aqui, o total de impressoras passa a ser a soma dos valores das máquinas.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <Label>Franquia de páginas desta máquina</Label>
+            <Input
+              inputMode="numeric"
+              value={form.franquia_paginas}
+              onChange={(e) => set('franquia_paginas', e.target.value)}
+              placeholder="ex.: 2000 — deixe vazio para usar a franquia do contrato"
+            />
+            <p className="text-xs text-muted-foreground">
+              Preencha só quando o contrato for franquia POR MÁQUINA: o excedente é calculado
+              isolado nesta máquina (o que sobra na franquia das outras não cobre).
             </p>
           </div>
           {emTroca ? (

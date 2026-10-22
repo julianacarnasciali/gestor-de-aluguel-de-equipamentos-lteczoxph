@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-22T00:23:39.276Z",
+  "generatedAt": "2026-10-22T00:38:56.379Z",
   "collections": [
     {
       "name": "users",
@@ -508,6 +508,12 @@
         },
         {
           "name": "vlr_mensal",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "franquia_paginas",
           "type": "number",
           "required": false,
           "system": false

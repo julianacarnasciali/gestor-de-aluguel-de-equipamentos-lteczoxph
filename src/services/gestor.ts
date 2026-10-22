@@ -73,6 +73,7 @@ export interface Equipamento {
   ativo: boolean
   contador_manual: boolean
   vlr_mensal: number
+  franquia_paginas: number
   substituido_em: string
   expand?: { empresa?: Empresa; contrato?: Contrato }
 }
