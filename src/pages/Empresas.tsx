@@ -342,9 +342,8 @@ export default function Empresas() {
           if (!c.ativo) continue
           const mes = (c.reajuste_mes || '').split('/')[0]
           const pct = c.reajuste_percentual ? ` — ${c.reajuste_percentual}%` : ''
-          const vig =
-            c.mes_ini && c.mes_fim ? ` · vigência ${c.mes_ini}–${c.mes_fim}` : ''
-          mapa[c.empresa] = `${MESES[mes] ?? mes || '—'}${pct}${vig}`
+          const vig = c.mes_ini && c.mes_fim ? ` · vigência ${c.mes_ini}–${c.mes_fim}` : ''
+          mapa[c.empresa] = `${(MESES[mes] ?? mes) || '—'}${pct}${vig}`
         }
         setReajustes(mapa)
         // ?abrir=ID na URL: abre o diálogo da empresa correspondente
@@ -420,7 +419,10 @@ export default function Empresas() {
     // validação da vigência/reajuste antes de salvar
     const mm = (v: string) => /^\d{2}$/.test(v) && Number(v) >= 1 && Number(v) <= 12
     const mmaa = (v: string) => /^\d{2}\/\d{4}$/.test(v)
-    if ((ctrForm.mes_ini && !mmaa(ctrForm.mes_ini)) || (ctrForm.mes_fim && !mmaa(ctrForm.mes_fim))) {
+    if (
+      (ctrForm.mes_ini && !mmaa(ctrForm.mes_ini)) ||
+      (ctrForm.mes_fim && !mmaa(ctrForm.mes_fim))
+    ) {
       setErroForm('Vigência no formato MM/AAAA (ex.: 01/2025).')
       return
     }
@@ -489,7 +491,7 @@ export default function Empresas() {
         const mes = ctrForm.reajuste_mes
         setReajustes((prev) => ({
           ...prev,
-          [editando.id]: `${MESES[mes] ?? mes || '—'}${pct ? ` — ${pct}%` : ''}${
+          [editando.id]: `${(MESES[mes] ?? mes) || '—'}${pct ? ` — ${pct}%` : ''}${
             ctrForm.mes_ini && ctrForm.mes_fim
               ? ` · vigência ${ctrForm.mes_ini}–${ctrForm.mes_fim}`
               : ''
@@ -769,9 +771,7 @@ export default function Empresas() {
                           <Label className="text-[11px] text-slate-500">Início (MM/AAAA)</Label>
                           <Input
                             value={ctrForm.mes_ini}
-                            onChange={(e) =>
-                              setCtrForm({ ...ctrForm, mes_ini: e.target.value })
-                            }
+                            onChange={(e) => setCtrForm({ ...ctrForm, mes_ini: e.target.value })}
                             placeholder="01/2025"
                             inputMode="numeric"
                           />
@@ -780,9 +780,7 @@ export default function Empresas() {
                           <Label className="text-[11px] text-slate-500">Vence (MM/AAAA)</Label>
                           <Input
                             value={ctrForm.mes_fim}
-                            onChange={(e) =>
-                              setCtrForm({ ...ctrForm, mes_fim: e.target.value })
-                            }
+                            onChange={(e) => setCtrForm({ ...ctrForm, mes_fim: e.target.value })}
                             placeholder="01/2027"
                             inputMode="numeric"
                           />
