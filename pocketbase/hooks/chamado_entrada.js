@@ -168,6 +168,72 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
     console.warn('[chamado] erro email', errE)
   }
 
+  // 3) PUSH ntfy (pedido dela 22/10 "os dois": aviso além do e-mail) — banner
+  // no celular de quem assina o tópico (Luiz + Juliana). Falha não bloqueia.
+  try {
+    const topico = $secrets.get('NTFY_CHAMADOS_TOPIC')
+    if (topico) {
+      const msgPush =
+        '🔧 ' +
+        prioridade.toUpperCase() +
+        ' — ' +
+        nomeEmp +
+        '\nPatrimônio: ' +
+        patrimonio +
+        (setor ? ' · Setor: ' + setor : '') +
+        '\n' +
+        String(descricao || '').slice(0, 160)
+      const rN = $http.send({
+        url: 'https://ntfy.sh/' + topico,
+        method: 'POST',
+        headers: {
+          Title: 'Chamado ' + prioridade.toUpperCase() + ' — ' + nomeEmp,
+          Priority: prioridade === 'urgente' ? 'high' : 'default',
+          Tags: 'rotating_light',
+        },
+        body: msgPush,
+      })
+      console.log('[chamado] ntfy push', rN.statusCode, nova.id)
+    } else {
+      console.warn('[chamado] sem NTFY_CHAMADOS_TOPIC — push não enviado')
+    }
+  } catch (errP) {
+    console.warn('[chamado] erro ntfy', errP)
+  }
+
+  // 4) WHATSAPP via CallMeBot — grátis, ativação única no WhatsApp do
+  // destinatário (contato +34 623 78 64 49 + msg "I allow callmebot to send
+  // me messages" → devolve a APIKEY). Config por segredo; sem config, pula.
+  try {
+    const waFone = $secrets.get('CALLMEBOT_PHONE')
+    const waKey = $secrets.get('CALLMEBOT_APIKEY')
+    if (waFone && waKey) {
+      const msgWa =
+        '🔧 CHAMADO ' +
+        prioridade.toUpperCase() +
+        ' — ' +
+        nomeEmp +
+        '\nPatrimônio: ' +
+        patrimonio +
+        (setor ? '\nSetor: ' + setor : '') +
+        '\nDefeito: ' +
+        String(descricao || '').slice(0, 200)
+      const urlWa =
+        'https://api.callmebot.com/whatsapp.php?phone=' +
+        encodeURIComponent(waFone) +
+        '&apikey=' +
+        encodeURIComponent(waKey) +
+        '&text=' +
+        encodeURIComponent(msgWa)
+      const rW = $http.send({ url: urlWa, method: 'GET' })
+      console.log('[chamado] whatsapp callmebot', rW.statusCode, nova.id)
+    } else {
+      console.warn('[chamado] sem CALLMEBOT_PHONE/APIKEY — whatsapp não enviado')
+    }
+  } catch (errW) {
+    console.warn('[chamado] erro whatsapp', errW)
+  }
+
   return e.json(200, { ok: true, id: nova.id, prioridade: prioridade })
 })
 
