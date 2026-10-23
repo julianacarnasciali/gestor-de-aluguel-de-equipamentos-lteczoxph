@@ -196,26 +196,17 @@ export default function Propostas() {
     setRespostasLuiz('')
   }
 
-  const gerarPdf = (p: Proposta) => {
+  const gerarPdf = async (p: Proposta) => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
     const W = 595
     const H = 842
+    const emp = empresas.find((e) => e.id === p.empresa)
 
-    // CABEÇALHO — faixa navy + LOGO (URL pública do arquivo no banco)
+    // CABEÇALHO — faixa navy + LOGO (jsPDF não aceita URL remota: baixa e
+    // converte p/ dataURL antes — corrigido 23/10 após o PDF sair sem logo)
     doc.setFillColor(...NAVY)
     doc.rect(0, 0, W, 92, 'F')
-    try {
-      doc.addImage(
-        'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev/api/files/arquivos/ib0smsxri8sw6q2/full_branco_y8024354gz.png',
-        'PNG',
-        40,
-        22,
-        190,
-        48,
-      )
-    } catch (_) {
-      // logo indisponível — segue só com o texto
-    }
+    aplicarLogo(doc)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(13)
@@ -364,6 +355,38 @@ export default function Propostas() {
     doc.save(`proposta-${(p.numero || p.id).replace(/[/\s]/g, '-')}.pdf`)
   }
 
+  // LOGO no PDF: baixa a imagem e converte p/ dataURL (jsPDF não aceita URL
+  // remota — lição 23/10). Cache em memória p/ não baixar 2x.
+  const [logoDataUrl, setLogoDataUrl] = useState('')
+  useEffect(() => {
+    if (logoDataUrl) return
+    fetch(
+      'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev/api/files/arquivos/ib0smsxri8sw6q2/full_branco_y8024354gz.png',
+    )
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) =>
+        b
+          ? new Promise<string>((res) => {
+              const fr = new FileReader()
+              fr.onload = () => res(String(fr.result))
+              fr.readAsDataURL(b)
+            })
+          : '',
+      )
+      .then((d) => d && setLogoDataUrl(d))
+      .catch(() => {})
+  }, [])
+
+  // injeta a logo no PDF logo após o cabeçalho (antes do save)
+  const aplicarLogo = (doc: jsPDF) => {
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', 40, 22, 190, 48)
+      } catch (_) {
+        // logo inválida — segue sem ela
+      }
+    }
+  }
   const marcarStatus = async (p: Proposta, status: string) => {
     await pbExport.collection('propostas_comerciais').update(p.id, { status })
     carregar()
