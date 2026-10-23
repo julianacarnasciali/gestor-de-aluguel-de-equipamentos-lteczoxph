@@ -115,7 +115,9 @@ routerAdd('POST', '/backend/v1/proposta/gerar', (e) => {
       numero = rec.getString('numero')
     } else {
       const ano = new Date().getFullYear()
-      const n = $app.countRecordsByFilter('propostas_comerciais', "id != ''") + 1
+      // JSVM: countRecordsByFilter não existe — usa findRecordsByFilter p/ contar
+      const todos = $app.findRecordsByFilter('propostas_comerciais', "id != ''", '-created', 0, 0)
+      const n = todos.length + 1
       numero = 'PROP-' + ano + '-' + String(n).padStart(3, '0')
     }
 
