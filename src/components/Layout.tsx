@@ -12,6 +12,7 @@ const links = [
   { to: '/chamados', label: 'Chamados' },
   { to: '/agenda', label: 'Agenda' },
   { to: '/ordens', label: 'Ordens de serviço' },
+  { to: '/propostas', label: 'Propostas' },
   { to: '/fechamentos', label: 'Fechamento' },
   { to: '/contratos', label: 'Contratos' },
   { to: '/financeiro', label: 'Financeiro' },

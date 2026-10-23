@@ -22,6 +22,7 @@ import Etiquetas from './pages/Etiquetas'
 import Contratos from './pages/Contratos'
 import Agenda from './pages/Agenda'
 import Ordens from './pages/Ordens'
+import Propostas from './pages/Propostas'
 import OsAssinar from './pages/OsAssinar'
 import LeituraPublica from './pages/LeituraPublica'
 import Layout from './components/Layout'
@@ -139,6 +140,14 @@ const sistemaRoutes = (
         element={
           <RequireAuth>
             <Ordens />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/propostas"
+        element={
+          <RequireAuth>
+            <Propostas />
           </RequireAuth>
         }
       />
