@@ -1,16 +1,16 @@
 // Rota: GET /backend/v1/servico/relatorio?id=<servico_id>
 // Devolve o HTML do relatório arquivado do serviço (pedido dela 26/10:
 // "uma vez emitido, não consegui visualizar" — histórico navegável 6+ meses).
-// Autenticação: aceita (1) usuário logado do sistema OU (2) token de manutenção
-// (x-maestro-token = secret MAESTRO_TOKEN) OU (3) ?t=<MAESTRO_TOKEN> (p/ link do e-mail).
-// O link enviado ao cliente leva o token — sem ele, 401.
+// Autenticação: (1) usuário logado do sistema OU (2) token de manutenção via
+// ?t=<MAESTRO_TOKEN> (link do e-mail) ou header x-maestro-token.
+// TUDO inline no callback (JSVM não compartilha funções top-level).
 routerAdd('GET', '/backend/v1/servico/relatorio', (e) => {
   const id = String(e.request.url.query().get('id') || '')
   if (!id) return e.badRequestError('id is required')
 
   // autenticação: sessão OU token de manutenção (query ?t= ou header)
   const tokenQuery = String(e.request.url.query().get('t') || '')
-  const tokenHeader = String(e.request.header('x-maestro-token') || '')
+  const tokenHeader = String(e.request.header.get('x-maestro-token') || '')
   let ok = false
   try {
     if (e.auth && e.auth.id) ok = true
@@ -36,9 +36,8 @@ routerAdd('GET', '/backend/v1/servico/relatorio', (e) => {
         '.card{max-width:520px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px}</style></head>' +
         '<body><div class="card"><h2 style="color:#0F2A43">Relatório ainda não arquivado</h2>' +
         '<p>Este serviço ainda não tem relatório arquivado (o arquivo é gerado quando o e-mail da cobrança é enviado).</p>' +
-        '<p style="color:#64748b;font-size:13px">Se o serviço foi criado antes de 26/10/2026, o relatório não foi arquivado — o histórico começa nessa data.</p></div></body></html>',
+        '<p style="color:#64748b;font-size:13px">Serviços criados antes de 26/10/2026 não têm relatório arquivado — o histórico começa nessa data.</p></div></body></html>',
     })
   }
-  e.request.url.query().set('t', '') // não ecoa token
   return e.json(200, { html })
 })
