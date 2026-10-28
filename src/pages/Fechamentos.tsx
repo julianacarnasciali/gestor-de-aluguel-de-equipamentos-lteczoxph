@@ -74,18 +74,22 @@ export default function Fechamentos() {
     // franquia_paginas, o excedente é calculado MÁQUINA A MÁQUINA (o que sobra
     // na franquia de uma não cobre a outra). Sem isso, vale a franquia total
     // do contrato (paginas_contratadas), como sempre foi.
+    // ATENÇÃO (fix 28/10): campo number VAZIO no PocketBase volta como 0, não
+    // null. Testar "!= null" fazia TODA máquina passar no teste, e a soma dos
+    // valores (0) descartava a mensalidade do contrato — a Maxi de R$ 3.960
+    // fechava em R$ 0 de mensalidade. Agora o teste é "> 0": zero = campo não
+    // preenchido = usa a regra do contrato.
     const comFranquia = eqsDoContrato.filter(
-      (e) => (e as unknown as { franquia_paginas?: number }).franquia_paginas != null,
+      (e) => ((e as unknown as { franquia_paginas?: number }).franquia_paginas ?? 0) > 0,
     )
     let excedentes = 0
     if (comFranquia.length > 0) {
       for (const e of eqsDoContrato) {
         const l = leiturasDoContrato.find((x) => x.equipamento === e.id)
         const pags = l?.paginas_mes ?? 0
-        const franquia =
-          (e as unknown as { franquia_paginas?: number }).franquia_paginas ??
-          c.paginas_contratadas ??
-          0
+        const franquiaPropria =
+          (e as unknown as { franquia_paginas?: number }).franquia_paginas ?? 0
+        const franquia = franquiaPropria > 0 ? franquiaPropria : (c.paginas_contratadas ?? 0)
         excedentes += Math.max(0, pags - franquia)
       }
     } else {
@@ -96,8 +100,9 @@ export default function Fechamentos() {
     // tiver vlr_mensal lançado, o total de impressoras vira a SOMA dos valores
     // das máquinas ativas (ignora a mensalidade do contrato). Se nenhuma tiver,
     // mantém exatamente o que é cobrado hoje (mensalidade + dispositivos etc.).
+    // mesmo fix: "> 0" em vez de "!= null" (ver comentário da franquia acima)
     const comValor = eqsDoContrato.filter(
-      (e) => (e as unknown as { vlr_mensal?: number }).vlr_mensal != null,
+      (e) => ((e as unknown as { vlr_mensal?: number }).vlr_mensal ?? 0) > 0,
     )
     const somaMaquinas = eqsDoContrato.reduce(
       (a, e) => a + ((e as unknown as { vlr_mensal?: number }).vlr_mensal ?? 0),
