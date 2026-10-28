@@ -20,6 +20,9 @@ export interface Empresa {
   emite_nf: boolean
   ativo: boolean
   observacoes: string
+  // texto legal próprio deste cliente no rodapé do recibo (28/10).
+  // vazio = usa o rodapé global da config
+  rodape_legal: string
   tipo_cliente: 'impressora' | 'misto' | 'computador' | 'avulso' | ''
   contatos: Contato[]
   indicado_por: string

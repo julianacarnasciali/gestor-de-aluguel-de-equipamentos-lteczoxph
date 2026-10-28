@@ -180,8 +180,12 @@ export function gerarPdfFechamento(
   }
 
   // rodapé legal (fonte maior p/ leitura impressa — pedido 08/10)
-  if (config.rodape_legal) {
-    const words = config.rodape_legal.split(' ')
+  // POR CLIENTE (28/10): se a empresa tem rodapé próprio, vale o dela; senão
+  // cai no texto global da config. Alguns financeiros (Jandira) exigem o texto
+  // antigo, e trocar o global mudaria o documento de todos os clientes.
+  const rodape = (empresa?.rodape_legal || '').trim() || config.rodape_legal || ''
+  if (rodape) {
+    const words = rodape.split(' ')
     let line = ''
     let ry = H - 60
     doc.setFontSize(8)

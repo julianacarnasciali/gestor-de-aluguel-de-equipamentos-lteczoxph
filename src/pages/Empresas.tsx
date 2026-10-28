@@ -57,6 +57,7 @@ const empresaNova = (): Empresa => ({
   emite_nf: false,
   ativo: true,
   observacoes: '',
+  rodape_legal: '',
   tipo_cliente: 'impressora',
   contatos: [],
   indicado_por: '',
@@ -453,6 +454,7 @@ export default function Empresas() {
         ativo: editando.ativo,
         emite_nf: editando.emite_nf,
         observacoes: editando.observacoes ?? '',
+        rodape_legal: editando.rodape_legal ?? '',
       }
       if (ehNovo) {
         const criada = await createEmpresa(dados)
@@ -894,6 +896,22 @@ export default function Empresas() {
                   value={editando.observacoes}
                   onChange={(e) => setEditando({ ...editando, observacoes: e.target.value })}
                 />
+              </div>
+              {/* TEXTO LEGAL DO RECIBO DESTE CLIENTE (pedido dela 28/10):
+                  alguns financeiros de cliente exigem o texto do sistema
+                  antigo. Vazio = usa o rodapé legal global da config. */}
+              <div className="space-y-1">
+                <Label>Texto legal do recibo (só deste cliente)</Label>
+                <textarea
+                  className="w-full rounded-md border bg-transparent p-2 text-sm"
+                  rows={4}
+                  value={editando.rodape_legal ?? ''}
+                  onChange={(e) => setEditando({ ...editando, rodape_legal: e.target.value })}
+                  placeholder="Deixe vazio para usar o texto padrão. Preencha só quando o financeiro deste cliente exigir um texto específico."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Aparece no rodapé do recibo/fatura deste cliente. Não muda o texto dos outros.
+                </p>
               </div>
 
               {/* CONTRATO E ADITIVOS (pedido dela 22/10) */}
