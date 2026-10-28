@@ -25,6 +25,15 @@ const competenciaAtual = () => {
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
+// "10/2026" -> "31/10/2026": último dia do mês da competência, para o período
+// do documento (01/mm/aaaa a ultimo/mm/aaaa).
+const ultimoDia = (competencia: string) => {
+  const [mes, ano] = competencia.split('/').map(Number)
+  if (!mes || !ano) return ''
+  const ultimo = new Date(ano, mes, 0).getDate()
+  return `${String(ultimo).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`
+}
+
 export default function Fechamentos() {
   const [competencia, setCompetencia] = useState(competenciaAtual())
   const [contratos, setContratos] = useState<Contrato[]>([])
@@ -219,8 +228,11 @@ export default function Fechamentos() {
         data_vencimento: dataVenc,
         forma_pgto: formaPgto,
         mostrar_periodo: mostrarPeriodo,
-        periodo_de: `05/${competencia}`,
-        periodo_ate: `05/${competencia}`,
+        // PERÍODO = mês inteiro da competência (fix 28/10). Antes gravava
+        // `05/${competencia}` nas DUAS pontas e todo recibo saía com
+        // "Período: 05/10/2026 a 05/10/2026".
+        periodo_de: `01/${competencia}`,
+        periodo_ate: ultimoDia(competencia),
         status: 'emitido',
         observacoes: obs,
       })

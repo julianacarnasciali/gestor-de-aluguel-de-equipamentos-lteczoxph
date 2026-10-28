@@ -83,8 +83,13 @@ cronAdd('recorrencia_fechamentos', '0 6 1 * *', () => {
         data_vencimento: venc,
         forma_pgto: 'boleto',
         mostrar_periodo: true,
+        // período = mês inteiro da competência. Antes ia até '28/' fixo, o que
+        // cortava 29/30/31 e nem sempre fechava o mês.
         periodo_de: '01/' + competencia,
-        periodo_ate: '28/' + competencia,
+        periodo_ate: (function (mm, aa) {
+          const ultimo = new Date(Number(aa), Number(mm), 0).getDate()
+          return String(ultimo).padStart(2, '0') + '/' + String(mm).padStart(2, '0') + '/' + aa
+        })(cMes, cAno),
         status: 'emitido',
         observacoes: 'Cobrança recorrente automática (sem impressora no contrato)',
       })
