@@ -70,26 +70,38 @@ export default function Fechamentos() {
       eqsDoContrato.some((e) => e.id === l.equipamento),
     )
     const paginas = leiturasDoContrato.reduce((a, l) => a + (l.paginas_mes ?? 0), 0)
-    // FRANQUIA POR MÁQUINA (pedido dela 21/10): se QUALQUER impressora tiver
-    // franquia_paginas, o excedente é calculado MÁQUINA A MÁQUINA (o que sobra
-    // na franquia de uma não cobre a outra). Sem isso, vale a franquia total
-    // do contrato (paginas_contratadas), como sempre foi.
+    // REGRA DE FRANQUIA — QUEM MANDA É O CONTRATO (definido pela Juliana 28/10):
+    //   tipo_excedente = "por_maquina" -> cada impressora tem a própria franquia
+    //     e o que sobra numa NÃO cobre a outra (1.001 numa + 200 noutra = 1 pág
+    //     de excedente só na primeira).
+    //   tipo_excedente = "total" -> a franquia é a soma do contrato
+    //     (paginas_contratadas).
+    // O Luiz vai migrando os contratos aos poucos para "por_maquina": basta
+    // trocar o campo no contrato, sem mexer no código.
     // ATENÇÃO (fix 28/10): campo number VAZIO no PocketBase volta como 0, não
     // null. Testar "!= null" fazia TODA máquina passar no teste, e a soma dos
     // valores (0) descartava a mensalidade do contrato — a Maxi de R$ 3.960
-    // fechava em R$ 0 de mensalidade. Agora o teste é "> 0": zero = campo não
-    // preenchido = usa a regra do contrato.
-    const comFranquia = eqsDoContrato.filter(
-      (e) => ((e as unknown as { franquia_paginas?: number }).franquia_paginas ?? 0) > 0,
-    )
+    // fechava com R$ 0 de mensalidade. Por isso o teste é "> 0".
+    const porMaquina = c.tipo_excedente === 'por_maquina'
+    const semFranquiaPropria = eqsDoContrato.filter(
+      (e) => !(((e as unknown as { franquia_paginas?: number }).franquia_paginas ?? 0) > 0),
+    ).length
+    // máquina sem franquia própria: divide a franquia do contrato entre as
+    // máquinas. Nem herda o total inteiro (daria 18.000 págs livres p/ cada uma
+    // na Maxi), nem zera (cobraria TODA página como excedente). Assim o total
+    // do contrato é preservado.
+    const franquiaRateada =
+      semFranquiaPropria > 0
+        ? Math.floor((c.paginas_contratadas ?? 0) / Math.max(1, eqsDoContrato.length))
+        : 0
     let excedentes = 0
-    if (comFranquia.length > 0) {
+    if (porMaquina) {
       for (const e of eqsDoContrato) {
         const l = leiturasDoContrato.find((x) => x.equipamento === e.id)
         const pags = l?.paginas_mes ?? 0
         const franquiaPropria =
           (e as unknown as { franquia_paginas?: number }).franquia_paginas ?? 0
-        const franquia = franquiaPropria > 0 ? franquiaPropria : (c.paginas_contratadas ?? 0)
+        const franquia = franquiaPropria > 0 ? franquiaPropria : franquiaRateada
         excedentes += Math.max(0, pags - franquia)
       }
     } else {
@@ -112,7 +124,27 @@ export default function Fechamentos() {
     const fixo =
       vlrImpressoras + (c.vlr_dispositivos ?? 0) + (c.vlr_servidores ?? 0) + (c.vlr_servicos ?? 0)
     const subtotal = fixo + vlrExcedentes
+    // AVISO DE CONSUMO EXAGERADO (pedido dela 28/10): ela precisa saber ANTES de
+    // cobrar, para conferir ou combinar com o cliente. Dois sinais, ambos
+    // conservadores (não disparam no uso normal):
+    //  1) o excedente custa mais que a parte fixa do mês — a conta praticamente
+    //     dobrou por consumo;
+    //  2) uma única máquina passou de 5x a própria franquia.
+    const maquinasEstouradas = porMaquina
+      ? eqsDoContrato.filter((e) => {
+          const l = leiturasDoContrato.find((x) => x.equipamento === e.id)
+          const pags = l?.paginas_mes ?? 0
+          const propria = (e as unknown as { franquia_paginas?: number }).franquia_paginas ?? 0
+          const franquia = propria > 0 ? propria : franquiaRateada
+          return franquia > 0 && pags > franquia * 5
+        }).length
+      : 0
+    const sinais: string[] = []
+    if (fixo > 0 && vlrExcedentes > fixo) sinais.push('excedente maior que a mensalidade')
+    if (maquinasEstouradas > 0)
+      sinais.push(`${maquinasEstouradas} máquina(s) acima de 5x a franquia`)
     return {
+      suspeitaExagero: sinais.join(' · '),
       eqs: eqsDoContrato,
       paginas,
       excedentes,
@@ -122,7 +154,7 @@ export default function Fechamentos() {
       vlrImpressoras,
       somaMaquinas,
       temValoresPorMaquina: comValor.length > 0,
-      franquiaPorMaquina: comFranquia.length > 0,
+      franquiaPorMaquina: porMaquina,
     }
   }
 
@@ -137,6 +169,16 @@ export default function Fechamentos() {
         x.eqs.length - leituras.filter((l) => x.eqs.some((e) => e.id === l.equipamento)).length
       alert(`Faltam leituras: ${faltam} máquina(s) sem leitura lançada nesta competência.`)
       return
+    }
+    // consumo fora do padrão: ela pediu p/ ser avisada ANTES de cobrar (28/10)
+    if (x.suspeitaExagero) {
+      const ok = confirm(
+        `⚠ Consumo fora do padrão: ${x.suspeitaExagero}.\n\n` +
+          `Total ficaria ${brl(x.subtotal)}.\n\n` +
+          `Clique em OK para conferir no detalhe, ou Cancelar para seguir com a emissão assim mesmo.`,
+      )
+      // OK = quer conferir primeiro, então NÃO abre o fechamento
+      if (ok) return
     }
     setModal(c)
     setDescontoPct('0')
@@ -270,7 +312,13 @@ export default function Fechamentos() {
                           {c.paginas_contratadas?.toLocaleString('pt-BR')} págs · exc.{' '}
                           {brl(c.preco_excedente)}/pág
                           {c.tipo_cobranca === 'media' ? ' · por média' : ''}
+                          {c.tipo_excedente === 'por_maquina' ? ' · franquia por máquina' : ''}
                         </p>
+                        {x.suspeitaExagero && (
+                          <p className="text-xs font-semibold text-red-700 mt-1">
+                            ⚠ consumo fora do padrão — confira antes de cobrar
+                          </p>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-muted-foreground">págs do mês</p>
@@ -459,6 +507,11 @@ export default function Fechamentos() {
                         {x.franquiaPorMaquina && (
                           <span className="block text-xs text-amber-700">
                             cálculo por máquina (franquia individual)
+                          </span>
+                        )}
+                        {x.suspeitaExagero && (
+                          <span className="block text-xs font-semibold text-red-700">
+                            ⚠ consumo fora do padrão ({x.suspeitaExagero}) — confira antes de cobrar
                           </span>
                         )}
                       </p>
