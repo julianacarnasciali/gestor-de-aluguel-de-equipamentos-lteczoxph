@@ -145,7 +145,7 @@ export default function Lcca() {
       ev.currentTarget.reset()
     } catch {
       setErro(
-        'Não conseguimos enviar agora — chama no WhatsApp (41) 98859-8343 que a gente resolve na hora.',
+        'Não conseguimos enviar agora — chama no WhatsApp (41) 99135-9130 que a gente resolve na hora.',
       )
     } finally {
       setEnviando(false)
@@ -453,7 +453,7 @@ export default function Lcca() {
             <p style={{ marginTop: 10 }}>
               📱 WhatsApp dos Negócios
               <br />
-              (41) 98859-8343
+              (41) 99135-9130
             </p>
             <p style={{ marginTop: 6 }}>✉️ contato@lccatech.com</p>
           </div>
