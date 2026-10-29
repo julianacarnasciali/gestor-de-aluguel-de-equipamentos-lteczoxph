@@ -43,6 +43,12 @@ routerAdd('POST', '/backend/v1/leads', (e) => {
     ['assados', 'food'],
     ['espetinho', 'food'],
     ['food truck', 'food'],
+    ['locacao', 'locacao'],
+    ['locação', 'locacao'],
+    ['advogad', 'juridico'],
+    ['juridic', 'juridico'],
+    ['jurídic', 'juridico'],
+    ['processo', 'juridico'],
     ['nao sei', 'nao_sei'],
   ]
   let interesseNorm = ''
@@ -87,6 +93,8 @@ routerAdd('POST', '/backend/v1/leads', (e) => {
         infra_completa: 'Infraestrutura completa',
         software_cupom: 'Software + impressora de cupom',
         food: 'Sistema para churrascaria / assados (nicho food)',
+        locacao: 'Gestor de locação de impressoras',
+        juridico: 'Software para advogados',
         nao_sei: 'Ainda não sei — quer conversar',
       }
       const interesseTxt = rotulos[interesseNorm] || interesse
