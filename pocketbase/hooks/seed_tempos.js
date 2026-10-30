@@ -83,9 +83,19 @@ routerAdd('POST', '/backend/v1/manutencao/seed-tempos', (e) => {
     rec.set('iniciado_por', tec)
     rec.set('resolvido_por', tec)
     rec.set('tempo_estimado', false)
-    rec.set('created', iso(new Date(abertura)))
-    rec.set('updated', iso(new Date(fim)))
     $app.save(rec)
+
+    // `created` é campo autodate: o PocketBase IGNORA o valor no save e grava
+    // a hora atual (descoberto no teste 30/10 — os tempos davam 0min).
+    // Para o dado de demonstração ficar coerente, força via SQL.
+    try {
+      const db = $app.db()
+      db.newQuery('UPDATE chamados SET created = {:c} WHERE id = {:id}')
+        .bind({ c: iso(new Date(abertura)), id: rec.id })
+        .execute()
+    } catch (errC) {
+      console.warn('[seed] nao consegui ajustar created', errC)
+    }
     criados.push(rec.id)
   }
 
