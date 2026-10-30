@@ -56,17 +56,35 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
   // video/foto precisam existir FORA do try (usados no e-mail depois —
   // lição 13/10 valia só p/ video; foto escapou e derrubava o e-mail c/
   // ReferenceError em TODO chamado — achado no teste E2E 22/10)
+  // BUG CORRIGIDO 30/10: `info.files` NÃO existe no PocketBase — o upload
+  // é lido por e.findUploadedFiles(campo). Com info.files a foto/vídeo eram
+  // silenciosamente descartados em TODO chamado (nenhum tinha mídia salva).
   let video = null
   let foto = null
   try {
-    const files = (info && info.files) || {}
-    video = files['video'] || null
-    if (video) nova.set('video', video)
-    foto = files['foto'] || null
-    if (foto) nova.set('foto', foto)
-  } catch (errF) {
-    console.warn('[chamado] midia nao anexada', errF)
+    const vids = e.findUploadedFiles('video') || []
+    if (vids.length > 0) {
+      video = vids[0]
+      nova.set('video', video)
+    }
+  } catch (errV) {
+    console.warn('[chamado] video nao anexado', errV)
   }
+  try {
+    const fotos = e.findUploadedFiles('foto') || []
+    if (fotos.length > 0) {
+      foto = fotos[0]
+      nova.set('foto', foto)
+    }
+  } catch (errF) {
+    console.warn('[chamado] foto nao anexada', errF)
+  }
+  console.log(
+    '[chamado] midia recebida | foto:',
+    foto ? 'sim' : 'nao',
+    '| video:',
+    video ? 'sim' : 'nao',
+  )
 
   $app.save(nova)
   console.log(
@@ -337,10 +355,10 @@ routerAdd('POST', '/backend/v1/leitura', (e) => {
   rec.set('leitura_atual', atual)
   rec.set('paginas_mes', paginas)
 
+  // BUG CORRIGIDO 30/10: `info.files` nao existe — usar e.findUploadedFiles
   try {
-    const files = (info && info.files) || {}
-    const foto = files['arquivo'] || null
-    if (foto) rec.set('arquivo', foto)
+    const fotos = e.findUploadedFiles('arquivo') || []
+    if (fotos.length > 0) rec.set('arquivo', fotos[0])
   } catch (errF) {
     console.warn('[leitura] foto do visor nao anexada', errF)
   }
