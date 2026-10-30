@@ -29,6 +29,7 @@ const grupos = [
       { to: '/patrimonio', label: 'Patrimônio' },
       { to: '/etiquetas', label: 'Etiquetas' },
       { to: '/ordens', label: 'Ordens de serviço' },
+      { to: '/tempos', label: 'Tempos de atendimento' },
     ],
   },
   {

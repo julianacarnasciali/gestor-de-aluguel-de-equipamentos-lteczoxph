@@ -23,6 +23,7 @@ import Contratos from './pages/Contratos'
 import Agenda from './pages/Agenda'
 import Ordens from './pages/Ordens'
 import Propostas from './pages/Propostas'
+import RelatorioTempos from './pages/RelatorioTempos'
 import OsAssinar from './pages/OsAssinar'
 import LeituraPublica from './pages/LeituraPublica'
 import Layout from './components/Layout'
@@ -178,6 +179,14 @@ const sistemaRoutes = (
         element={
           <RequireAuth>
             <Etiquetas />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/tempos"
+        element={
+          <RequireAuth>
+            <RelatorioTempos />
           </RequireAuth>
         }
       />

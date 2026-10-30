@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
+import { duracao, situacaoSla, type ChamadoTempo } from '@/lib/sla'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -38,6 +39,7 @@ interface Chamado {
   resolvido_por: string
   sla_horas: number
   prazo_em: string
+  tempo_estimado: boolean
   expand?: {
     equipamento?: { marca_modelo?: string }
     empresa?: { nome?: string }
@@ -70,69 +72,15 @@ const STATUS_LABEL: Record<string, string> = {
 }
 const META_PADRAO: MetasSla = { urgente: 4, alta: 8, media: 24, baixa: 48 }
 
-// ---------- utilidades de SLA ----------
-const HORA = 3600 * 1000
-
-/** prazo do chamado: campo gravado ou, se faltar, created + sla_horas */
-const prazoDe = (c: Chamado): number | null => {
+// As réguas de tempo (duracao / situacaoSla / prazoDe) vivem em lib/sla.ts —
+// a MESMA que o Relatório de Tempos usa. Se cada tela calculasse por conta
+// própria, um dia mostrariam números diferentes para o mesmo chamado.
+const prazoDe = (c: ChamadoTempo): number | null => {
   if (c.prazo_em) return new Date(c.prazo_em.replace(' ', 'T')).getTime()
-  if (c.sla_horas > 0) return new Date(c.created.replace(' ', 'T')).getTime() + c.sla_horas * HORA
+  if (c.sla_horas > 0) {
+    return new Date(c.created.replace(' ', 'T')).getTime() + c.sla_horas * 3600 * 1000
+  }
   return null
-}
-
-/** duração legível: "2h 15min", "1d 4h", "—" */
-const duracao = (ms: number): string => {
-  if (!isFinite(ms) || ms < 0) return '—'
-  const min = Math.round(ms / 60000)
-  if (min < 60) return `${min}min`
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  if (h < 24) return m > 0 ? `${h}h ${m}min` : `${h}h`
-  const d = Math.floor(h / 24)
-  const rh = h % 24
-  return rh > 0 ? `${d}d ${rh}h` : `${d}d`
-}
-
-type Situacao = 'no_prazo' | 'em_risco' | 'atrasado' | 'concluido' | 'concluido_atraso' | 'sem_meta'
-
-/** situação do SLA de um chamado */
-const situacaoSla = (
-  c: Chamado,
-): { tipo: Situacao; rotulo: string; cls: string; detalhe: string } => {
-  const prazo = prazoDe(c)
-  if (prazo === null) {
-    return { tipo: 'sem_meta', rotulo: 'sem meta', cls: 'bg-slate-300', detalhe: '' }
-  }
-  if (c.status === 'resolvido') {
-    const fim = c.resolvido_em ? new Date(c.resolvido_em.replace(' ', 'T')).getTime() : null
-    if (fim === null) {
-      return { tipo: 'concluido', rotulo: 'resolvido', cls: 'bg-slate-500', detalhe: '' }
-    }
-    const dentro = fim <= prazo
-    return {
-      tipo: dentro ? 'concluido' : 'concluido_atraso',
-      rotulo: dentro ? '✓ no prazo' : '✗ fora do prazo',
-      cls: dentro ? 'bg-emerald-600' : 'bg-rose-700',
-      detalhe: `levou ${duracao(fim - new Date(c.created.replace(' ', 'T')).getTime())} · meta ${c.sla_horas}h`,
-    }
-  }
-  const restante = prazo - Date.now()
-  if (restante < 0) {
-    return {
-      tipo: 'atrasado',
-      rotulo: `atrasado ${duracao(-restante)}`,
-      cls: 'bg-rose-600',
-      detalhe: `venceu em ${new Date(prazo).toLocaleString('pt-BR')}`,
-    }
-  }
-  const total = c.sla_horas * HORA
-  const risco = total > 0 && restante / total < 0.25
-  return {
-    tipo: risco ? 'em_risco' : 'no_prazo',
-    rotulo: `faltam ${duracao(restante)}`,
-    cls: risco ? 'bg-amber-500' : 'bg-teal-600',
-    detalhe: `prazo ${new Date(prazo).toLocaleString('pt-BR')}`,
-  }
 }
 
 const emAtendimentoOuAberto = (c: Chamado) => c.status !== 'resolvido'
