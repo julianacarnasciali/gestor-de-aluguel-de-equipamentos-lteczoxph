@@ -53,6 +53,23 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
   nova.set('prioridade', prioridade)
   nova.set('status', 'aberto')
 
+  // SLA (30/10): a meta vem da config (editável na tela) e fica CONGELADA no
+  // chamado — mudar a meta depois não reescreve o prazo do histórico.
+  const SLA_PADRAO = { urgente: 4, alta: 8, media: 24, baixa: 48 }
+  let slaHoras = SLA_PADRAO[prioridade] || 24
+  try {
+    const cfgs = $app.findRecordsByFilter('config', 'id != ""', '', 1, 0)
+    if (cfgs.length > 0) {
+      const v = Number(cfgs[0].getFloat('sla_' + prioridade + '_horas') || 0)
+      if (v > 0) slaHoras = v
+    }
+  } catch (errCfg) {
+    console.warn('[chamado] config de SLA indisponivel — usando padrao', errCfg)
+  }
+  nova.set('sla_horas', slaHoras)
+  const agoraMs = Date.now()
+  nova.set('prazo_em', new Date(agoraMs + slaHoras * 3600 * 1000).toISOString())
+
   // video/foto precisam existir FORA do try (usados no e-mail depois —
   // lição 13/10 valia só p/ video; foto escapou e derrubava o e-mail c/
   // ReferenceError em TODO chamado — achado no teste E2E 22/10)
@@ -119,12 +136,44 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
             : foto
               ? '<p style="color:#0D9488">📷 <b>Foto anexada</b> — veja no painel (Chamados).</p>'
               : '<p style="color:#94a3b8">Sem foto/vídeo anexado.</p>'
+      // SLA: prazo legível (horário de Brasília = UTC-3) + link que abre o
+      // chamado já logado no painel (botão "Iniciar atendimento" ali).
+      const fmtBR = (d) => {
+        const b = new Date(d.getTime() - 3 * 3600 * 1000)
+        const p2 = (n) => String(n).padStart(2, '0')
+        return (
+          p2(b.getUTCDate()) +
+          '/' +
+          p2(b.getUTCMonth() + 1) +
+          ' ' +
+          p2(b.getUTCHours()) +
+          ':' +
+          p2(b.getUTCMinutes())
+        )
+      }
+      const prazoTxt = fmtBR(new Date(agoraMs + slaHoras * 3600 * 1000))
+      const corSla =
+        slaHoras <= 4 ? '#dc2626' : slaHoras <= 8 ? '#d97706' : '#0D9488'
+      const baseUrl =
+        $secrets.get('APP_URL') || 'https://gestor-de-aluguel-de-equipamentos-e924e.goskip.app'
+      const linkChamado = baseUrl + '/chamados?abrir=' + nova.id
+
       const html =
         '<div style="max-width:640px;font-family:Arial">' +
         '<div style="background:#0F2A43;padding:14px 20px;border-radius:8px 8px 0 0">' +
         '<div style="color:#fff;font-weight:bold;font-size:18px">🔧 NOVO CHAMADO TÉCNICO</div>' +
         '<div style="color:#94a3b8;font-size:12px">aberto via QR code do patrimônio</div></div>' +
         '<div style="border:1px solid #e2e8f0;border-top:none;padding:16px 20px;border-radius:0 0 8px 8px">' +
+        '<div style="background:' +
+        corSla +
+        ';color:#fff;padding:10px 14px;border-radius:6px;margin-bottom:14px">' +
+        '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.9">SLA — prazo para resolver</div>' +
+        '<div style="font-size:17px;font-weight:bold">' +
+        slaHoras +
+        'h · até ' +
+        prazoTxt +
+        '</div>' +
+        '</div>' +
         '<table style="width:100%;font-size:14px;color:#0F2A43">' +
         '<tr><td style="padding:4px 0;color:#64748b;width:130px">Empresa</td><td><b>' +
         esc(nomeEmp) +
@@ -150,12 +199,16 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
         '<div style="margin-top:12px;padding:10px 14px;background:#f1f5f9;border-radius:6px">' +
         '<div style="color:#64748b;font-size:12px;margin-bottom:4px">Defeito relatado:</div>' +
         '<div style="color:#0F2A43;font-size:14px">' +
-        esc(descricao).replace(/\n/g, '<br>') +
+        esc(descricao).replace(/\\n/g, '<br>') +
         '</div></div>' +
         corVideo +
-        '<p style="color:#94a3b8;font-size:11px">Painel do sistema → Chamados → atender/marcar resolvido.</p>' +
-        '</div></div>'
-      const dados = {
+        '<div style="text-align:center;margin:20px 0 6px">' +
+        '<a href="' +
+        linkChamado +
+        '" style="background:#0D9488;color:#fff;text-decoration:none;padding:12px 26px;border-radius:6px;font-weight:bold;font-size:14px;display:inline-block">▶ Iniciar atendimento</a>' +
+        '</div>' +
+        '<p style="color:#94a3b8;font-size:11px;text-align:center">O botão abre o chamado no painel — clique em <b>Iniciar atendimento</b> para começar a contar o SLA e em <b>Marcar resolvido</b> ao terminar.</p>' +
+        '</div></div>'      const dados = {
         sender: { name: senderName, email: sender },
         to: [{ email: 'lcca.informatica@gmail.com', name: 'Luiz Carlos' }],
         cc: [{ email: 'adm@lccatech.com' }],

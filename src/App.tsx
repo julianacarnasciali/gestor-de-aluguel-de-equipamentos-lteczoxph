@@ -1,5 +1,5 @@
 /* Main App Component - Handles routing (using react-router-dom), query client and other providers - use this file to add all routes */
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -30,7 +30,13 @@ import { AuthProvider, useAuth } from '@/hooks/use-auth'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user } = useAuth()
-  return user ? children : <Navigate to="/login" replace />
+  const location = useLocation()
+  if (user) return children
+  // guarda a rota pedida (?abrir=<chamado> vindo do e-mail) para voltar
+  // direto ao chamado depois do login
+  const destino = location.pathname + location.search
+  const volta = destino && destino !== '/' ? `?voltar=${encodeURIComponent(destino)}` : ''
+  return <Navigate to={`/login${volta}`} replace />
 }
 
 // Landing na raiz: quando acessado por lccatech.com / www.lccatech.com, o app

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T19:56:53.181Z",
+  "generatedAt": "2026-10-30T21:11:32.506Z",
   "collections": [
     {
       "name": "users",
@@ -1027,6 +1027,30 @@
             "onCreate",
             "onUpdate"
           ]
+        },
+        {
+          "name": "sla_urgente_horas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sla_alta_horas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sla_media_horas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sla_baixa_horas",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -1653,6 +1677,42 @@
         {
           "name": "foto",
           "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "iniciado_em",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "resolvido_em",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "iniciado_por",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "resolvido_por",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sla_horas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "prazo_em",
+          "type": "date",
           "required": false,
           "system": false
         }

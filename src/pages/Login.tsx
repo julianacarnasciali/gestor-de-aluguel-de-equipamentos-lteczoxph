@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +9,13 @@ import { Label } from '@/components/ui/label'
 export default function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  // ?voltar=<rota> — vem do RequireAuth quando o link do e-mail (chamado)
+  // exige login; só aceita caminho interno (evita redirecionar p/ fora)
+  const voltar = (() => {
+    const v = params.get('voltar') || ''
+    return v.startsWith('/') && !v.startsWith('//') ? v : '/'
+  })()
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
@@ -20,7 +27,7 @@ export default function Login() {
     setCarregando(true)
     try {
       await signIn(email, senha)
-      navigate('/', { replace: true })
+      navigate(voltar, { replace: true })
     } catch {
       setErro('E-mail ou senha inválidos.')
     } finally {
