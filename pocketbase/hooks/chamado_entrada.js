@@ -152,8 +152,7 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
         )
       }
       const prazoTxt = fmtBR(new Date(agoraMs + slaHoras * 3600 * 1000))
-      const corSla =
-        slaHoras <= 4 ? '#dc2626' : slaHoras <= 8 ? '#d97706' : '#0D9488'
+      const corSla = slaHoras <= 4 ? '#dc2626' : slaHoras <= 8 ? '#d97706' : '#0D9488'
       const baseUrl =
         $secrets.get('APP_URL') || 'https://gestor-de-aluguel-de-equipamentos-e924e.goskip.app'
       const linkChamado = baseUrl + '/chamados?abrir=' + nova.id
@@ -208,7 +207,8 @@ routerAdd('POST', '/backend/v1/chamado', (e) => {
         '" style="background:#0D9488;color:#fff;text-decoration:none;padding:12px 26px;border-radius:6px;font-weight:bold;font-size:14px;display:inline-block">▶ Iniciar atendimento</a>' +
         '</div>' +
         '<p style="color:#94a3b8;font-size:11px;text-align:center">O botão abre o chamado no painel — clique em <b>Iniciar atendimento</b> para começar a contar o SLA e em <b>Marcar resolvido</b> ao terminar.</p>' +
-        '</div></div>'      const dados = {
+        '</div></div>'
+      const dados = {
         sender: { name: senderName, email: sender },
         to: [{ email: 'lcca.informatica@gmail.com', name: 'Luiz Carlos' }],
         cc: [{ email: 'adm@lccatech.com' }],
