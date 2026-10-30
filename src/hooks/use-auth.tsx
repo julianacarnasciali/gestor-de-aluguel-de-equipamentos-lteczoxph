@@ -14,11 +14,25 @@ const AuthContext = createContext<AuthContextType>({
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthContextType['user']>(null)
+  const pega = (r: { id?: string; email?: string; name?: string; perfil?: string } | null) =>
+    r?.id ? { id: r.id, email: r.email ?? '', name: r.name ?? '', perfil: r.perfil } : null
+
+  // LIÇÃO (30/10): o authStore do PocketBase já vem hidratado do localStorage
+  // de forma SÍNCRONA. Iniciar o state em null fazia o RequireAuth expulsar
+  // para /login na PRIMEIRA renderização de qualquer recarga — o link do
+  // e-mail (?abrir=<chamado>) caía no login mesmo com sessão válida.
+  const [user, setUser] = useState<AuthContextType['user']>(() =>
+    pega(
+      pb.authStore.record as unknown as {
+        id?: string
+        email?: string
+        name?: string
+        perfil?: string
+      } | null,
+    ),
+  )
 
   useEffect(() => {
-    const pega = (r: { id?: string; email?: string; name?: string; perfil?: string } | null) =>
-      r?.id ? { id: r.id, email: r.email ?? '', name: r.name ?? '', perfil: r.perfil } : null
     setUser(
       pega(
         pb.authStore.record as unknown as {
