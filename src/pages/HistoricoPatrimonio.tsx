@@ -62,6 +62,14 @@ const TIPO_ICO: Record<string, string> = {
 const brl = (v: number) =>
   (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+// data do registro de manutenção: o campo guarda meio-dia UTC para o dia não
+// "voltar" um ao converter para Brasília — mostramos só a data
+const fmtDataDia = (s: string) => {
+  if (!s) return '—'
+  const t = new Date(s.replace(' ', 'T'))
+  return isNaN(t.getTime()) ? '—' : t.toLocaleDateString('pt-BR')
+}
+
 type Linha =
   | { tipo: 'manutencao'; data: string; m: Manutencao }
   | { tipo: 'chamado'; data: string; c: ChamadoTempo }
@@ -349,7 +357,7 @@ export default function HistoricoPatrimonio() {
                   </div>
                   {stats.primeiraOcorrencia && (
                     <div className="text-xs text-muted-foreground mt-1">
-                      Histórico desde {fmtData(stats.primeiraOcorrencia)}
+                      Histórico desde {fmtDataDia(stats.primeiraOcorrencia)}
                     </div>
                   )}
                 </div>
@@ -365,10 +373,12 @@ export default function HistoricoPatrimonio() {
             <Card>
               <CardContent className="pt-4 pb-3">
                 <div className="text-xs text-muted-foreground uppercase tracking-wide">
-                  Problemas relatados
+                  Chamados
                 </div>
                 <div className="text-2xl font-bold text-[#0F2A43]">{stats.problemas}</div>
-                <div className="text-xs text-muted-foreground">chamados abertos</div>
+                <div className="text-xs text-muted-foreground">
+                  relatados · {stats.manutencoes} manutenç{stats.manutencoes === 1 ? 'ão' : 'ões'}
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -431,7 +441,7 @@ export default function HistoricoPatrimonio() {
                             <div className="flex items-center gap-2">
                               <Badge className={TIPO_CLS[l.m.tipo]}>{TIPO_LABEL[l.m.tipo]}</Badge>
                               <span className="text-xs text-muted-foreground">
-                                {fmtData(l.m.data)}
+                                {fmtDataDia(l.m.data)}
                               </span>
                             </div>
                             <div className="text-xs text-muted-foreground">
