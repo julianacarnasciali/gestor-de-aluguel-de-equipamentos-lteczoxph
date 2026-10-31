@@ -31,6 +31,7 @@ const grupos = [
       { to: '/historico', label: 'Histórico de manutenção' },
       { to: '/ordens', label: 'Ordens de serviço' },
       { to: '/tempos', label: 'Tempos de atendimento' },
+      { to: '/alertas', label: 'Alerta de troca' },
     ],
   },
   {

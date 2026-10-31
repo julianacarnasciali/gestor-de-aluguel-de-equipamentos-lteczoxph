@@ -25,6 +25,7 @@ import Ordens from './pages/Ordens'
 import Propostas from './pages/Propostas'
 import RelatorioTempos from './pages/RelatorioTempos'
 import HistoricoPatrimonio from './pages/HistoricoPatrimonio'
+import AlertasTroca from './pages/AlertasTroca'
 import OsAssinar from './pages/OsAssinar'
 import LeituraPublica from './pages/LeituraPublica'
 import Layout from './components/Layout'
@@ -196,6 +197,14 @@ const sistemaRoutes = (
         element={
           <RequireAuth>
             <HistoricoPatrimonio />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/alertas"
+        element={
+          <RequireAuth>
+            <AlertasTroca />
           </RequireAuth>
         }
       />

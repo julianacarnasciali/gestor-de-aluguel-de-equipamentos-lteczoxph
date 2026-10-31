@@ -15,6 +15,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/use-auth'
+import { calcularAlertas, type EquipAlerta, type ManutencaoAlerta } from '@/lib/alerta-troca'
+import type { ChamadoTempo } from '@/lib/sla'
 
 // PÁGINA INICIAL EM QUADRADINHOS (14/10, pedido dela — aprovado no mockup):
 // card por empresa com quadradinhos por ação (Contrato · Leitura · Financeiro ·
@@ -38,6 +40,8 @@ interface Avisos {
   // reajuste (marca dos 11 meses) ou com contrato vencendo em 1-2 meses
   empresasReajuste: Set<string>
   totalReajustes: number
+  // ALERTA DE TROCA (pedido dela 31/10): máquinas candidatas à substituição
+  equipamentosTroca: number
 }
 
 type Quad = { rotulo: string; ico: string; to: string; destaque?: boolean }
@@ -108,6 +112,7 @@ export default function Index() {
     chamadosAbertos: 0,
     empresasReajuste: new Set(),
     totalReajustes: 0,
+    equipamentosTroca: 0,
   })
   const [busca, setBusca] = useState('')
   const [mostrarHistoricas, setMostrarHistoricas] = useState(false)
@@ -122,6 +127,12 @@ export default function Index() {
       .getFullList<{ id: string; status?: string }>({ sort: '-created' })
       .catch(() => [] as { id: string; status?: string }[])
 
+    // dados do alerta de troca (31/10) — falha não impede a home de abrir
+    const manutencoesTry = pbExport
+      .collection('manutencoes')
+      .getFullList()
+      .catch(() => [] as never[])
+
     Promise.all([
       getEmpresas(),
       getContratos(),
@@ -129,8 +140,9 @@ export default function Index() {
       getLeituras(comp),
       getFechamentos(comp),
       chamadosTry,
+      manutencoesTry,
     ])
-      .then(([emps, ctrs, eqs, leis, fechs, chams]) => {
+      .then(([emps, ctrs, eqs, leis, fechs, chams, mans]) => {
         setEmpresas(emps)
         setContratos(ctrs)
         setEquipamentos(eqs)
@@ -193,6 +205,21 @@ export default function Index() {
           }
         }
 
+        // ALERTA DE TROCA (31/10): quantas máquinas passam do critério.
+        // Usa o mesmo cálculo da tela /alertas (lib/alerta-troca) — critério
+        // único, sem número divergente entre telas.
+        let equipamentosTroca = 0
+        try {
+          const alertas = calcularAlertas(
+            eqs.filter((q) => q.ativo) as unknown as EquipAlerta[],
+            (mans || []) as unknown as ManutencaoAlerta[],
+            chams as unknown as (ChamadoTempo & { equipamento?: string })[],
+          )
+          equipamentosTroca = alertas.length
+        } catch (e) {
+          console.warn('[home] alerta de troca indisponivel', e)
+        }
+
         setAvisos({
           empresasSemLeitura,
           totalLeiturasFaltando: semLeitura.length,
@@ -201,6 +228,7 @@ export default function Index() {
           chamadosAbertos: abertos.length,
           empresasReajuste,
           totalReajustes,
+          equipamentosTroca,
         })
         setAvisosReajuste(avisoReajusteEmpresa)
       })
@@ -329,9 +357,19 @@ export default function Index() {
               📅 Reajustes/vencimentos <b className="text-violet-700">{avisos.totalReajustes}</b>
             </Link>
           )}
+          {avisos.equipamentosTroca > 0 && (
+            <Link
+              to="/alertas"
+              className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[13px] text-slate-700 shadow-sm hover:bg-rose-50"
+              title="Máquinas que passaram do critério de manutenção — candidatas à troca"
+            >
+              🔄 Trocar equipamento <b className="text-rose-600">{avisos.equipamentosTroca}</b>
+            </Link>
+          )}
           {avisos.totalLeiturasFaltando === 0 &&
             avisos.totalFechPendentes === 0 &&
-            avisos.chamadosAbertos === 0 && (
+            avisos.chamadosAbertos === 0 &&
+            avisos.equipamentosTroca === 0 && (
               <div className="rounded-lg border border-lime-200 bg-lime-50 px-3 py-1.5 text-[13px] text-lime-700">
                 ✓ Tudo em dia — competência {competenciaAtual()}
               </div>
