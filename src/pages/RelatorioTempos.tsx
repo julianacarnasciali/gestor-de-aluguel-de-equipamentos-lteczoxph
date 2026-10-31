@@ -16,13 +16,14 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import {
   agrupar,
   duracao,
-  duracaoHoras,
+  escolherEscala,
   fmtData,
   mesDe,
   nomeEmpresa,
   resumir,
   situacaoSla,
   temposDe,
+  valorNaEscala,
   type ChamadoTempo,
 } from '@/lib/sla'
 import { gerarPdfTempos } from '@/lib/pdf-tempos'
@@ -99,12 +100,15 @@ export default function RelatorioTempos() {
 
   const estimados = useMemo(() => chamados.filter((c) => c.tempo_estimado).length, [chamados])
 
+  // ESCALA ADAPTATIVA (correção 31/10): em minutos quando os tempos são
+  // curtos, senão a barra de 2min virava 0h e o gráfico ficava só com eixos.
+  const escala = escolherEscala(grupos.map((g) => g.resumo.totalMedio ?? 0).filter((v) => v > 0))
   const dadosBarras = grupos
     .filter((g) => g.resumo.totalMedio !== null)
     .slice(0, 10)
     .map((g) => ({
       nome: g.nome.length > 16 ? g.nome.slice(0, 15) + '…' : g.nome,
-      horas: duracaoHoras(g.resumo.totalMedio ?? 0),
+      valor: valorNaEscala(g.resumo.totalMedio ?? 0, escala),
     }))
 
   const tituloPeriodo = mes
@@ -257,7 +261,7 @@ export default function RelatorioTempos() {
                   : agrupamento === 'responsavel'
                     ? 'responsável'
                     : 'prioridade'}{' '}
-                <span className="font-normal text-muted-foreground">(horas)</span>
+                <span className="font-normal text-muted-foreground">({escala.rotulo})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -266,9 +270,13 @@ export default function RelatorioTempos() {
                   <BarChart data={dadosBarras} margin={{ left: 10, bottom: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="nome" fontSize={11} angle={-20} textAnchor="end" height={55} />
-                    <YAxis fontSize={11} tickFormatter={(v) => v + 'h'} />
-                    <Tooltip formatter={(v) => `${v}h`} />
-                    <Bar dataKey="horas" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                    <YAxis
+                      fontSize={11}
+                      tickFormatter={(v) => `${v}${escala.sufixo}`}
+                      allowDecimals={escala.unidade === 'h'}
+                    />
+                    <Tooltip formatter={(v) => `${v}${escala.sufixo}`} />
+                    <Bar dataKey="valor" fill="#0d9488" radius={[4, 4, 0, 0]} minPointSize={3} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (

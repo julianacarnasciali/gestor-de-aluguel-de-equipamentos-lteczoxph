@@ -54,6 +54,33 @@ export const duracao = (v: number): string => {
 export const duracaoHoras = (v: number): number =>
   isFinite(v) && v > 0 ? Math.round((v / HORA) * 10) / 10 : 0
 
+// ESCALA DO GRÁFICO (correção 31/10): arredondar para 1 casa em horas fazia
+// um atendimento de 2min virar 0h e a barra desaparecer — o gráfico aparecia
+// só com os eixos e parecia não existir. Regra: até 90min a escala é em
+// MINUTOS; acima disso, em horas.
+export interface EscalaGrafico {
+  unidade: 'min' | 'h'
+  fator: number // divide o ms para chegar no número da barra
+  sufixo: string
+  rotulo: string
+}
+
+export const escolherEscala = (valoresMs: number[]): EscalaGrafico => {
+  const maior = Math.max(0, ...valoresMs.filter((v) => isFinite(v) && v > 0))
+  if (maior < 90 * 60000) {
+    return { unidade: 'min', fator: 60000, sufixo: 'min', rotulo: 'minutos' }
+  }
+  return { unidade: 'h', fator: HORA, sufixo: 'h', rotulo: 'horas' }
+}
+
+/** valor da barra na unidade da escala, com precisão suficiente para não zerar */
+export const valorNaEscala = (ms: number, escala: EscalaGrafico): number => {
+  if (!isFinite(ms) || ms <= 0) return 0
+  const v = ms / escala.fator
+  if (escala.unidade === 'min') return Math.max(1, Math.round(v))
+  return Math.max(0.1, Math.round(v * 10) / 10)
+}
+
 export interface Tempos {
   resposta: number | null // aberto → iniciado
   execucao: number | null // iniciado → resolvido

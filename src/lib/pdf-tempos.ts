@@ -1,5 +1,12 @@
 import { jsPDF } from 'jspdf'
-import { duracao, temposDe, type ChamadoTempo, type Resumo } from '@/lib/sla'
+import {
+  duracao,
+  escolherEscala,
+  temposDe,
+  valorNaEscala,
+  type ChamadoTempo,
+  type Resumo,
+} from '@/lib/sla'
 
 const NAVY: [number, number, number] = [15, 42, 67]
 const TEAL: [number, number, number] = [13, 148, 136]
@@ -153,7 +160,7 @@ export async function gerarPdfTempos(args: Args) {
 
   rodape(1)
 
-  // ---------- PÁGINA 2: POR GRUPO ----------
+  // ---------- PÁGINA 2: GRÁFICO + POR GRUPO ----------
   const tituloGrupo =
     agrupamento === 'empresa'
       ? 'cliente'
@@ -162,11 +169,82 @@ export async function gerarPdfTempos(args: Args) {
         : 'prioridade'
   doc.addPage()
   cabecalho('TEMPOS POR ' + tituloGrupo.toUpperCase())
-  let gy = 116
+  let gy = 112
+
+  // GRÁFICO DE BARRAS (pedido dela 31/10: "não criou gráfico, somente um
+  // relatório"). Desenhado com retângulos vetoriais do próprio jsPDF.
+  const comTempo = grupos.filter((g) => g.resumo.totalMedio !== null && g.resumo.totalMedio > 0)
+  if (comTempo.length > 0) {
+    doc.setTextColor(...NAVY)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text(`Tempo médio total por ${tituloGrupo}`, M, gy)
+    gy += 8
+
+    const escala = escolherEscala(comTempo.map((g) => g.resumo.totalMedio as number))
+    const areaX = M + 88
+    const areaW = W - M - areaX - 10
+    const areaY = gy + 12
+    const linhaH = 20
+    const areaH = Math.min(comTempo.length, 8) * linhaH + 26
+    const maior = Math.max(
+      ...comTempo.map((g) => valorNaEscala(g.resumo.totalMedio as number, escala)),
+    )
+    const itens = comTempo.slice(0, 8)
+
+    // grade + eixos
+    doc.setDrawColor(226, 232, 240)
+    doc.setLineWidth(0.5)
+    const passos = 4
+    for (let i = 0; i <= passos; i++) {
+      const x = areaX + (areaW * i) / passos
+      doc.line(x, areaY, x, areaY + itens.length * linhaH)
+      doc.setTextColor(...CINZA)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6.5)
+      const v = (maior * i) / passos
+      doc.text(
+        `${Math.round(v * 10) / 10}${escala.sufixo}`,
+        x - 6,
+        areaY + itens.length * linhaH + 9,
+      )
+    }
+
+    itens.forEach((g, i) => {
+      const yy = areaY + i * linhaH
+      // nome do grupo (truncado)
+      doc.setTextColor(26, 32, 38)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.text(String(g.nome).slice(0, 24), M, yy + 10)
+      // barra
+      const valor = valorNaEscala(g.resumo.totalMedio as number, escala)
+      const larg = maior > 0 ? (valor / maior) * areaW : 0
+      doc.setFillColor(...TEAL)
+      doc.rect(areaX, yy + 2, Math.max(2, larg), linhaH - 7, 'F')
+      // valor na ponta
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6.5)
+      doc.setTextColor(...NAVY)
+      doc.text(duracao(g.resumo.totalMedio as number), areaX + larg + 3, yy + 10)
+    })
+
+    gy = areaY + itens.length * linhaH + 24
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...CINZA)
+    doc.text(
+      `Escala em ${escala.rotulo}. Cada barra é a média de tempo total (abertura até conclusão) do grupo.`,
+      M,
+      gy,
+    )
+    gy += 22
+  }
+
   doc.setTextColor(...NAVY)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
-  doc.text(`Tempo médio por ${tituloGrupo}`, M, gy)
+  doc.text(`Detalhe por ${tituloGrupo}`, M, gy)
   gy += 20
 
   const colG = [M, M + 170, M + 235, M + 300, M + 365, M + 435]
