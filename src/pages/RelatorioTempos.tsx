@@ -245,28 +245,23 @@ export default function RelatorioTempos() {
             </Card>
           </div>
 
-          {resumo.resolvidos === 0 && (
-            <div className="mb-5 rounded-md border bg-slate-50 p-4 text-sm text-muted-foreground">
-              Ainda não há chamado resolvido com tempo medido neste período. O número aparece assim
-              que o primeiro chamado for iniciado e encerrado pelo painel.
-            </div>
-          )}
-
-          {/* GRÁFICO */}
-          {dadosBarras.length > 0 && (
-            <Card className="mb-5">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">
-                  Tempo médio total por{' '}
-                  {agrupamento === 'empresa'
-                    ? 'cliente'
-                    : agrupamento === 'responsavel'
-                      ? 'responsável'
-                      : 'prioridade'}{' '}
-                  <span className="font-normal text-muted-foreground">(horas)</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+          {/* GRÁFICO — mostrado sempre que houver QUALQUER chamado; sem número
+    medido ele explica o vazio em vez de simplesmente sumir (foi o
+    que aconteceu em 31/10: a tela parecia só um relatório). */}
+          <Card className="mb-5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">
+                Tempo médio total por{' '}
+                {agrupamento === 'empresa'
+                  ? 'cliente'
+                  : agrupamento === 'responsavel'
+                    ? 'responsável'
+                    : 'prioridade'}{' '}
+                <span className="font-normal text-muted-foreground">(horas)</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dadosBarras.length > 0 ? (
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={dadosBarras} margin={{ left: 10, bottom: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -276,9 +271,22 @@ export default function RelatorioTempos() {
                     <Bar dataKey="horas" fill="#0d9488" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="h-[260px] flex flex-col items-center justify-center text-center gap-2 border border-dashed rounded-md">
+                  <div className="text-3xl">📊</div>
+                  <p className="text-sm font-medium">
+                    O gráfico nasce com o primeiro atendimento medido
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md">
+                    Nenhum chamado foi <b>iniciado e resolvido pelo painel</b> neste período, então
+                    não há tempo real para desenhar. Marcar “incluir antigos (estimado)” não
+                    preenche o gráfico de propósito: número aproximado não serve para apresentar a
+                    cliente.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* TABELA POR GRUPO */}
           <Card className="mb-5">

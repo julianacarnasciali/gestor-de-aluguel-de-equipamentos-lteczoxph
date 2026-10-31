@@ -24,6 +24,7 @@ import Agenda from './pages/Agenda'
 import Ordens from './pages/Ordens'
 import Propostas from './pages/Propostas'
 import RelatorioTempos from './pages/RelatorioTempos'
+import HistoricoPatrimonio from './pages/HistoricoPatrimonio'
 import OsAssinar from './pages/OsAssinar'
 import LeituraPublica from './pages/LeituraPublica'
 import Layout from './components/Layout'
@@ -187,6 +188,14 @@ const sistemaRoutes = (
         element={
           <RequireAuth>
             <RelatorioTempos />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/historico"
+        element={
+          <RequireAuth>
+            <HistoricoPatrimonio />
           </RequireAuth>
         }
       />

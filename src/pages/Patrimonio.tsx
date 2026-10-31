@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getEquipamentosPatrimonio, type Equipamento } from '@/services/gestor'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -40,8 +40,16 @@ export default function Patrimonio() {
   // FILTRO POR EMPRESA (pedido dela 21/10): vem da URL (?empresa=ID) quando
   // aberto pelo card da empresa, ou pelo seletor aqui na tela
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const empresaFiltro = params.get('empresa') ?? ''
   const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([])
+
+  // histórico da máquina a partir do nº de patrimônio (pedido dela 31/10):
+  // 1 clique na linha → /historico já filtrado por este patrimônio
+  const verHistorico = (patrimonio: string) => {
+    if (!patrimonio) return
+    navigate(`/historico?p=${encodeURIComponent(patrimonio)}`)
+  }
 
   const abrirEdicao = (e: Equipamento) => {
     const emp = e.expand?.empresa
@@ -171,6 +179,7 @@ export default function Patrimonio() {
                   <TableHead>Empresa</TableHead>
                   <TableHead>Contrato</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Histórico</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -217,12 +226,25 @@ export default function Patrimonio() {
                           <Badge variant="secondary">Inativo</Badge>
                         )}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            verHistorico(e.patrimonio)
+                          }}
+                        >
+                          🔧 Histórico
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   )
                 })}
                 {lista.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       Nada encontrado{busca ? ` para "${busca}"` : ''}.
                     </TableCell>
                   </TableRow>
