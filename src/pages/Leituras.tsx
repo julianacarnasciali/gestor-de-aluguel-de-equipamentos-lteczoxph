@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { getLeiturasAll, updateEquipamento } from '@/services/gestor'
 import { useAuth } from '@/hooks/use-auth'
 import { DialogEquipamento, type DialogEquipState } from '@/components/DialogEquipamento'
@@ -20,6 +27,38 @@ import { Plus, Pencil } from 'lucide-react'
 const competenciaAtual = () => {
   const d = new Date()
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+// Lista de competências para o seletor (pedido 01/11): em vez de digitar
+// MM/AAAA, escolher o mês numa lista. Vai de 2 anos atrás até o fim do ano
+// que vem, para fechar mês passado e adiantar o próximo sem digitar.
+const MESES_PT = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+]
+
+const opcoesCompetencia = () => {
+  const hoje = new Date()
+  const lista: { valor: string; rotulo: string }[] = []
+  for (let ano = hoje.getFullYear() - 2; ano <= hoje.getFullYear() + 1; ano++) {
+    for (let m = 0; m < 12; m++) {
+      lista.push({
+        valor: `${String(m + 1).padStart(2, '0')}/${ano}`,
+        rotulo: `${MESES_PT[m]}/${ano}`,
+      })
+    }
+  }
+  return lista.reverse() // o mais recente primeiro
 }
 
 interface EstadoMaquina {
@@ -224,27 +263,24 @@ export default function Leituras() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Input
-            className="w-32"
+          <Select
             value={competencia}
-            onChange={(e) => setCompetencia(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') carregar(competencia)
+            onValueChange={(v) => {
+              setCompetencia(v)
+              carregar(v) // trocar o mês já carrega: não precisa clicar em mais nada
             }}
-            placeholder="MM/AAAA"
-          />
-          <Button
-            variant={competencia.trim() !== compCarregada ? 'default' : 'outline'}
-            className={competencia.trim() !== compCarregada ? 'bg-teal-600 hover:bg-teal-700' : ''}
-            onClick={() => carregar(competencia)}
           >
-            Carregar
-          </Button>
-          {competencia.trim() !== compCarregada && (
-            <Badge variant="outline" className="border-amber-500 text-amber-700">
-              a tela ainda mostra {compCarregada}
-            </Badge>
-          )}
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="Competência" />
+            </SelectTrigger>
+            <SelectContent className="max-h-80">
+              {opcoesCompetencia().map((o) => (
+                <SelectItem key={o.valor} value={o.valor}>
+                  {o.rotulo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             className="w-48"
             value={busca}

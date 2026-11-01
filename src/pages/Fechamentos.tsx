@@ -54,6 +54,30 @@ const ultimoDia = (competencia: string) => {
   return `${String(ultimo).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`
 }
 
+const MESES_PT = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+]
+
+// Competência anterior, para sugerir o mês de uso quando ele difere da
+// competência (caso das primeiras leituras, tiradas em outubro sobre setembro).
+const competenciaAnterior = (competencia: string) => {
+  const [mes, ano] = competencia.split('/').map(Number)
+  if (!mes || !ano) return ''
+  const m = mes - 1
+  return m < 1 ? `12/${ano - 1}` : `${String(m).padStart(2, '0')}/${ano}`
+}
+
 export default function Fechamentos() {
   const [competencia, setCompetencia] = useState(competenciaAtual())
   const [contratos, setContratos] = useState<Contrato[]>([])
@@ -70,6 +94,11 @@ export default function Fechamentos() {
   const [descontoVlr, setDescontoVlr] = useState('0')
   const [dataEmissao, setDataEmissao] = useState('')
   const [dataVenc, setDataVenc] = useState('')
+  // Quando a leitura foi tirada e a que mês de uso ela se refere.
+  // Caso real (01/11): sistema no ar em outubro, leituras de SETEMBRO tiradas
+  // em 04-13/10 — o recibo tem de explicar isso, senão a competência parece erro.
+  const [dataLeitura, setDataLeitura] = useState('')
+  const [mesReferencia, setMesReferencia] = useState('')
   const [formaPgto, setFormaPgto] = useState('boleto')
   const [mostrarPeriodo, setMostrarPeriodo] = useState(true)
   const [obs, setObs] = useState('')
@@ -215,6 +244,13 @@ export default function Fechamentos() {
     const hoje = new Date().toISOString().slice(0, 10)
     setDataEmissao(hoje)
     setDataVenc(vencimentoPadrao(competencia, c.dia_vencimento))
+    // Data da leitura: padrão = hoje (dia em que o fechamento é feito).
+    // Mês de uso: padrão = o próprio mês da competência.
+    const hj = new Date()
+    setDataLeitura(
+      `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`,
+    )
+    setMesReferencia('')
     setObs(c.observacoes ?? '')
   }
 
@@ -251,6 +287,13 @@ export default function Fechamentos() {
         // "Período: 05/10/2026 a 05/10/2026".
         periodo_de: `01/${competencia}`,
         periodo_ate: ultimoDia(competencia),
+        // Quando a leitura foi tirada e a que mês de uso ela se refere.
+        // O sistema entrou no ar em outubro/2026 e as primeiras leituras
+        // (de setembro) foram tiradas em outubro — o recibo precisa dizer isso.
+        data_leitura: dataLeitura || hoje,
+        leitura_referencia:
+          mesReferencia ||
+          `${MESES_PT[Number(competencia.split('/')[0]) - 1]}/${competencia.split('/')[1]}`,
         status: 'emitido',
         observacoes: obs,
       })
@@ -610,6 +653,41 @@ export default function Fechamentos() {
                           <option value="sim">Sim</option>
                           <option value="nao">Não</option>
                         </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label>Data da leitura</Label>
+                        <Input
+                          type="date"
+                          value={dataLeitura}
+                          onChange={(e) => setDataLeitura(e.target.value)}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Quando o contador foi lido
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Mês de uso</Label>
+                        <select
+                          className="w-full rounded-md border bg-transparent p-2 text-sm"
+                          value={mesReferencia}
+                          onChange={(e) => setMesReferencia(e.target.value)}
+                        >
+                          <option value="">
+                            Mesmo da competência ({MESES_PT[Number(competencia.split('/')[0]) - 1]})
+                          </option>
+                          <option
+                            value={`${MESES_PT[Number(competenciaAnterior(competencia).split('/')[0]) - 1]}/${competenciaAnterior(competencia).split('/')[1]}`}
+                          >
+                            Mês anterior (
+                            {MESES_PT[Number(competenciaAnterior(competencia).split('/')[0]) - 1]}/
+                            {competenciaAnterior(competencia).split('/')[1]})
+                          </option>
+                        </select>
+                        <p className="text-[11px] text-muted-foreground">
+                          As páginas são deste mês
+                        </p>
                       </div>
                     </div>
                     <div className="space-y-1">

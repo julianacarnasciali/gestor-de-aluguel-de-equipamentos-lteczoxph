@@ -204,6 +204,9 @@ export interface Fechamento {
   valor_final: number
   periodo_de: string
   periodo_ate: string
+  // quando a leitura foi tirada e a que mês de uso ela se refere (01/11)
+  data_leitura: string
+  leitura_referencia: string
 }
 
 export const createFechamento = (data: Record<string, unknown>) =>

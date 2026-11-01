@@ -54,6 +54,9 @@ export function gerarPdfFechamento(
   )
 
   // título
+  // Campos novos (mig 0047) — o cast evita quebrar fechamentos antigos que
+  // ainda não têm os valores gravados.
+  const fechExt = fech as unknown as { data_leitura?: string; leitura_referencia?: string }
   const ehFatura = fech.tipo_documento === 'fatura'
   doc.setTextColor(...NAVY)
   doc.setFont('helvetica', 'bold')
@@ -73,6 +76,10 @@ export function gerarPdfFechamento(
   doc.setTextColor(...CINZA)
   doc.text('CNPJ/CPF: ' + (empresa?.cnpj_cpf ?? ''), 40, 145)
   if (empresa?.endereco) doc.text('Endereço: ' + empresa.endereco, 40, 158)
+  // Linha de referência do documento. A competência é o MÊS DE USO (regra da
+  // Juliana, 31/10), então o período mostrado tem de ser o mês medido — antes
+  // aparecia o período da competência com outro nome e o recibo saía
+  // inconsistente (ex.: competência 11/2026 com páginas de outubro).
   let linhaRef = 'Competência: ' + fech.competencia
   if (fech.mostrar_periodo) linhaRef += `  ·  Período: ${fech.periodo_de} a ${fech.periodo_ate}`
   linhaRef +=
@@ -84,8 +91,25 @@ export function gerarPdfFechamento(
       .join('/')
   doc.text(linhaRef, 40, 173)
 
+  // Nota da data da leitura (pedido 01/11): o sistema entrou no ar no começo de
+  // outubro e as primeiras leituras foram tiradas em outubro — mas se referem
+  // ao uso de setembro. Deixar isso escrito evita a leitura parecer errada.
+  let notaLeitura = ''
+  if (fechExt.data_leitura) {
+    const dl = String(fechExt.data_leitura).slice(0, 10).split('-').reverse().join('/')
+    notaLeitura = `Leitura realizada em ${dl}`
+    if (fechExt.leitura_referencia)
+      notaLeitura += ` — apurada pelo contador e referente ao uso de ${fechExt.leitura_referencia}`
+  }
+  if (notaLeitura) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.8)
+    doc.setTextColor(...CINZA)
+    doc.text(notaLeitura, 40, 185, { maxWidth: W - 80 })
+  }
+
   // tabela de leituras
-  let y = 186
+  let y = notaLeitura ? 198 : 186
   doc.setFillColor(...NAVY)
   doc.rect(40, y, W - 80, 18, 'F')
   doc.setTextColor(255, 255, 255)
