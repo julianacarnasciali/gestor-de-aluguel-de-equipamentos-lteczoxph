@@ -49,9 +49,16 @@ cronAdd('recorrencia_fechamentos', '0 6 1 * *', () => {
       const total = mensalidade + disp + serv + servicos
       if (total <= 0) continue
 
-      // dia de vencimento (clamp 28)
-      const diaVenc = Math.min(Number(k.getInt('dia_vencimento') || 5), 28)
-      const venc = `${cAno}-${cMes}-${String(diaVenc).padStart(2, '0')}`
+      // dia de vencimento no MÊS SEGUINTE ao da competência (regra da Juliana
+      // 31/10: competência = mês de uso, boleto paga no mês posterior).
+      // Antes vencia no mesmo mês da competência e o boleto nascia vencido.
+      const diaVenc = Number(k.getInt('dia_vencimento') || 5)
+      const mesVencNum = Number(cMes) + 1 // 13 = janeiro do ano seguinte
+      const anoVenc = mesVencNum > 12 ? Number(cAno) + 1 : Number(cAno)
+      const mesVenc = mesVencNum > 12 ? 1 : mesVencNum
+      const ultimoDoVenc = new Date(anoVenc, mesVenc, 0).getDate()
+      const diaFinal = Math.min(diaVenc, ultimoDoVenc)
+      const venc = `${anoVenc}-${String(mesVenc).padStart(2, '0')}-${String(diaFinal).padStart(2, '0')}`
       const emissao = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
 
       const col = $app.findCollectionByNameOrId('fechamentos')

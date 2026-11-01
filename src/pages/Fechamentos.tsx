@@ -25,6 +25,26 @@ const competenciaAtual = () => {
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
+// REGRA DE COBRANÇA (definida pela Juliana em 31/10/2026):
+//   competência = MÊS DE USO das páginas (01 a 31 do mês).
+//   O relatório é fechado entre o dia 25 e o dia 5 do mês SEGUINTE,
+//   e o boleto vence no mês SEGUINTE (ex.: uso de outubro -> competência
+//   10/2026 -> vencimento 05/11/2026).
+// Antes o vencimento caía no MESMO mês da competência (05/10), ou seja, o
+// boleto de outubro nascia vencido antes de a leitura ser tirada — e o Luiz
+// precisava corrigir a data na mão em todo fechamento.
+const vencimentoPadrao = (competencia: string, diaVenc?: number) => {
+  const [mes, ano] = competencia.split('/').map(Number)
+  if (!mes || !ano) return ''
+  const dia = Number(diaVenc) > 0 ? Number(diaVenc) : 5
+  // mês seguinte ao da competência (mes é 1-based, então como índice já é +1);
+  // dia 0 do mês posterior = último dia do mês de vencimento, para não estourar
+  // (dia 31 em mês de 30 dias virava 01 do mês seguinte).
+  const ultimoDoVenc = new Date(ano, mes + 1, 0).getDate()
+  const d = new Date(ano, mes, Math.min(dia, ultimoDoVenc))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // "10/2026" -> "31/10/2026": último dia do mês da competência, para o período
 // do documento (01/mm/aaaa a ultimo/mm/aaaa).
 const ultimoDia = (competencia: string) => {
@@ -194,9 +214,7 @@ export default function Fechamentos() {
     setDescontoVlr('0')
     const hoje = new Date().toISOString().slice(0, 10)
     setDataEmissao(hoje)
-    const [mes, ano] = competencia.split('/')
-    const venc = new Date(Number(ano), Number(mes) - 1, c.dia_vencimento || 5)
-    setDataVenc(venc.toISOString().slice(0, 10))
+    setDataVenc(vencimentoPadrao(competencia, c.dia_vencimento))
     setObs(c.observacoes ?? '')
   }
 

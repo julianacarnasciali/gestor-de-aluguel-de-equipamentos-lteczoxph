@@ -35,6 +35,12 @@ export default function Leituras() {
   const { user } = useAuth()
   const ehMaster = user?.perfil === 'tecnico_master'
   const [competencia, setCompetencia] = useState(competenciaAtual())
+  // FIX 31/10: competência cujos dados estão REALMENTE na tela. Antes o
+  // cabeçalho mostrava o que estava digitado no campo e a lista continuava com
+  // a competência anterior — dava para clicar em "Atualizar" achando que era o
+  // mês novo e sobrescrever a leitura do mês errado (o botão usa `competencia`
+  // no payload, então gravava no mês digitado um valor de outro mês).
+  const [compCarregada, setCompCarregada] = useState(competenciaAtual())
   const [maquinas, setMaquinas] = useState<Equipamento[]>([])
   const [estados, setEstados] = useState<Record<string, EstadoMaquina>>({})
   const [carregando, setCarregando] = useState(true)
@@ -67,6 +73,7 @@ export default function Leituras() {
 
   const carregar = (comp: string) => {
     setCarregando(true)
+    setCompCarregada(comp)
     Promise.all([getEquipamentos(), getLeituras(comp), getLeiturasAll()])
       .then(async ([eqs, leis, todas]) => {
         // histórico de páginas por máquina (excluindo a competência em edição)
@@ -127,14 +134,15 @@ export default function Leituras() {
       const payload: Record<string, unknown> = {
         equipamento: eq.id,
         contrato: eq.contrato,
-        competencia,
+        // grava na competência CARREGADA, nunca na que está sendo digitada
+        competencia: compCarregada,
         leitura_anterior: ant,
         leitura_atual: at,
         paginas_mes: Math.max(0, at - ant),
         origem: est.manual ? 'manual' : 'contador',
       }
       if (est.lancada) {
-        const l = await getLeituras(competencia)
+        const l = await getLeituras(compCarregada)
         const atual = l.find((x) => x.equipamento === eq.id)
         if (atual) await updateLeitura(atual.id, payload)
       } else {
@@ -164,7 +172,7 @@ export default function Leituras() {
       await createLeitura({
         equipamento: eq.id,
         contrato: eq.contrato,
-        competencia,
+        competencia: compCarregada,
         leitura_anterior: antAtual,
         leitura_atual: antAtual + pags,
         paginas_mes: pags,
@@ -212,7 +220,7 @@ export default function Leituras() {
         <div>
           <h1 className="text-2xl font-bold">Leituras de contadores</h1>
           <p className="text-sm text-muted-foreground">
-            Competência {competencia} · total lançado: {totalMes.toLocaleString('pt-BR')} págs
+            Competência {compCarregada} · total lançado: {totalMes.toLocaleString('pt-BR')} págs
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -220,11 +228,23 @@ export default function Leituras() {
             className="w-32"
             value={competencia}
             onChange={(e) => setCompetencia(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') carregar(competencia)
+            }}
             placeholder="MM/AAAA"
           />
-          <Button variant="outline" onClick={() => carregar(competencia)}>
+          <Button
+            variant={competencia.trim() !== compCarregada ? 'default' : 'outline'}
+            className={competencia.trim() !== compCarregada ? 'bg-teal-600 hover:bg-teal-700' : ''}
+            onClick={() => carregar(competencia)}
+          >
             Carregar
           </Button>
+          {competencia.trim() !== compCarregada && (
+            <Badge variant="outline" className="border-amber-500 text-amber-700">
+              a tela ainda mostra {compCarregada}
+            </Badge>
+          )}
           <Input
             className="w-48"
             value={busca}
