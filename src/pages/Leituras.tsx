@@ -333,7 +333,7 @@ export default function Leituras() {
                       return (
                         <div key={eq.id} className="flex items-center gap-3 py-3 flex-wrap">
                           <div className="min-w-48 flex-1">
-                            <p className="font-medium text-sm">
+                            <div className="font-medium text-sm">
                               {eq.patrimonio || eq.descricao || eq.id}
                               <button
                                 className="ml-2 text-slate-400 hover:text-teal-700"
@@ -357,7 +357,7 @@ export default function Leituras() {
                                 </Badge>
                               )}
                               {est.media && <Badge className="ml-2 bg-teal-600">pela média</Badge>}
-                            </p>
+                            </div>
                             {eq.setor && (
                               <p className="text-xs text-muted-foreground">
                                 {eq.setor}
