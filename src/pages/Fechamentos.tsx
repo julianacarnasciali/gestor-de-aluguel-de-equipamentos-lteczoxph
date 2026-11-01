@@ -244,12 +244,20 @@ export default function Fechamentos() {
     const hoje = new Date().toISOString().slice(0, 10)
     setDataEmissao(hoje)
     setDataVenc(vencimentoPadrao(competencia, c.dia_vencimento))
-    // Data da leitura: padrão = hoje (dia em que o fechamento é feito).
-    // Mês de uso: padrão = o próprio mês da competência.
+    // Data da leitura (pedido 01/11): o padrão tem de ser o dia em que a leitura
+    // foi REALMENTE tirada, não hoje. O sistema entrou no ar no começo de
+    // outubro e as primeiras leituras — de setembro — foram feitas em outubro;
+    // o recibo precisa dizer "leitura realizada em 05/10" para a competência
+    // de setembro não parecer erro. Pega a data de criação da leitura mais
+    // recente deste contrato nesta competência e cai em hoje se não houver.
+    const doContrato = leituras.filter((l) => l.contrato === c.id)
+    const datas = doContrato
+      .map((l) => String((l as unknown as { created?: string }).created ?? '').slice(0, 10))
+      .filter(Boolean)
+      .sort()
     const hj = new Date()
-    setDataLeitura(
-      `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`,
-    )
+    const hojeISO = `${hj.getFullYear()}-${String(hj.getMonth() + 1).padStart(2, '0')}-${String(hj.getDate()).padStart(2, '0')}`
+    setDataLeitura(datas.length ? datas[datas.length - 1] : hojeISO)
     setMesReferencia('')
     setObs(c.observacoes ?? '')
   }
