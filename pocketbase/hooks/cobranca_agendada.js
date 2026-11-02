@@ -296,6 +296,33 @@ cronAdd('cobranca_agendada', '*/5 * * * *', () => {
     )
   }
 
+  // ---------- rede de segurança: destrava o que ficou em "gerando" ----------
+  // Se o processo morrer no meio (deploy, timeout do Asaas), o registro ficaria
+  // preso em "gerando" para sempre. Depois de 30 min, volta para a fila.
+  for (const colecao of ['fechamentos', 'servicos']) {
+    try {
+      const presos = $app.findRecordsByFilter(colecao, 'cobranca_status = "gerando"', '', 50, 0)
+      for (const p of presos) {
+        let velho = false
+        try {
+          const dt = p.getDateTime('cobranca_agendada_em')
+          velho = !dt || dt.isZero() || dt.time().getTime() < agora.getTime() - 30 * 60 * 1000
+        } catch (_) {
+          velho = true
+        }
+        if (!velho) continue
+        const t = Number(p.get('tentativas_cobranca') || 0) + 1
+        p.set('tentativas_cobranca', t)
+        p.set('cobranca_status', t >= 5 ? 'erro' : 'aguardando')
+        p.set('cobranca_erro', 'travou em gerando — devolvido a fila (' + t + ')')
+        $app.save(p)
+        console.log('[cobranca] destravado', colecao, p.id, 'tentativa', t)
+      }
+    } catch (err) {
+      console.warn('[cobranca] erro ao destravar', colecao, err)
+    }
+  }
+
   // ---------- laço da fila ----------
   for (const colecao of ['fechamentos', 'servicos']) {
     let lista = []
