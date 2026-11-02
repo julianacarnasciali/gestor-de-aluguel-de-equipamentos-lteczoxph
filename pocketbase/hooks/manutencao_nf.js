@@ -711,6 +711,17 @@ routerAdd('POST', '/backend/v1/manutencao/asaas-cancelar-pagamento', (e) => {
   return e.json(200, { ok: true, removed: paymentId })
 })
 
+// Data de HOJE no fuso de São Paulo (AAAA-MM-DD).
+// new Date().toISOString() é UTC: das 21h à meia-noite em Brasília ele já
+// devolve o dia seguinte — boleto e baixa saíam com data de amanhã.
+//   POST /backend/v1/util/hoje  ->  { hoje: "2026-11-02" }
+routerAdd('GET', '/backend/v1/util/hoje', (e) => {
+  const d = new Date(Date.now() - 3 * 60 * 60 * 1000)
+  const p = (n) => String(n).padStart(2, '0')
+  const iso = d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate())
+  return e.json(200, { hoje: iso, fuso: 'America/Sao_Paulo' })
+})
+
 // Consulta um pagamento no Asaas (para conferência — não altera nada).
 //   POST /backend/v1/manutencao/asaas-pagamento { "paymentId": "pay_..." }
 routerAdd('POST', '/backend/v1/manutencao/asaas-pagamento', (e) => {

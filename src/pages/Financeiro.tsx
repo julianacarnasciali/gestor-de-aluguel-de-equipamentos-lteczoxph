@@ -26,7 +26,15 @@ interface ServicoLinha {
   asaas_boleto_url: string
 }
 
-const hoje = () => new Date().toISOString().slice(0, 10)
+// Data de HOJE no fuso de São Paulo.
+// `toISOString()` devolve UTC: entre 21h e 00h de Brasília o dia UTC já virou,
+// e a baixa ficava com a data de amanhã (e o "dias de atraso" errava). O Brazil
+// não tem mais horário de verão, então -03 fixo é seguro.
+const hoje = () => {
+  const d = new Date(Date.now() - 3 * 60 * 60 * 1000)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate())
+}
 
 const diasAtraso = (venc: string) => {
   if (!venc) return 0
