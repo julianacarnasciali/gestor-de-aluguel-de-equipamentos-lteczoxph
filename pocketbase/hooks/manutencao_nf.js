@@ -673,6 +673,44 @@ routerAdd('POST', '/backend/v1/cobranca/reativar', (e) => {
   })
 })
 
+// Cancela (remove) uma cobrança no Asaas — usado para desfazer teste ou
+// lançamento feito errado ANTES do vencimento. Só remove se ainda estiver
+// PENDING/OVERDUE; cobrança paga não é removida (use estorno no painel).
+//   POST /backend/v1/manutencao/asaas-cancelar-pagamento { "paymentId": "pay_..." }
+routerAdd('POST', '/backend/v1/manutencao/asaas-cancelar-pagamento', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const paymentId = String((body && body.paymentId) || '')
+  if (!paymentId) return e.badRequestError('paymentId obrigatorio')
+
+  const apiKey = $secrets.get('ASAAS_API_KEY')
+  const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
+  const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+
+  const r = $http.send({
+    url: base + '/payments/' + paymentId,
+    method: 'DELETE',
+    headers,
+  })
+  console.log(
+    '[manutencao] cancelar pagamento',
+    paymentId,
+    r.statusCode,
+    JSON.stringify(r.json || {}).slice(0, 250),
+  )
+  if (r.statusCode !== 200 && r.statusCode !== 204)
+    return e.badRequestError(
+      'Asaas: ' + String(r.statusCode) + ' ' + JSON.stringify(r.json).slice(0, 250),
+    )
+  return e.json(200, { ok: true, removed: paymentId })
+})
+
 // Consulta um pagamento no Asaas (para conferência — não altera nada).
 //   POST /backend/v1/manutencao/asaas-pagamento { "paymentId": "pay_..." }
 routerAdd('POST', '/backend/v1/manutencao/asaas-pagamento', (e) => {
