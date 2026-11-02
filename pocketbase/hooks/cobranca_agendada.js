@@ -283,6 +283,13 @@ cronAdd('cobranca_agendada', '*/5 * * * *', () => {
     //    (dispara quando o status vira "emitido" / quando o Pix é gravado).
     rec.set('cobranca_status', 'gerada')
     rec.set('cobranca_erro', '')
+    // Fechamento: ao concluir a geração, leva para "emitido" se ficou em
+    // rascunho. É esse UPDATE que faz o email_fechamento.js disparar UMA vez
+    // (ele grava status "enviado" em seguida, então não repete).
+    if (ehFechamento) {
+      const st = String(rec.getString('status') || '')
+      if (st === 'rascunho' || st === '') rec.set('status', 'emitido')
+    }
     $app.save(rec)
     console.log(
       '[cobranca] gerada',
