@@ -14,6 +14,15 @@ onRecordAfterUpdateSuccess((e) => {
       e.next()
       return
     }
+
+    // JANELA DE SEGURANÇA (02/11): só envia depois que a cobrança foi GERADA
+    // pela fila. Antes disso o boleto/NF podem nem existir, e um status mexido
+    // por engano (foi o caso da MID HOME) mandaria e-mail ao cliente.
+    const cobStatus = String(rec.getString('cobranca_status') || '')
+    if (cobStatus !== 'gerada') {
+      e.next()
+      return
+    }
     const nfStatus = String(rec.getString('asaas_invoice_status') || '')
     const emiteNF = (() => {
       try {

@@ -17,6 +17,12 @@ onRecordAfterUpdateSuccess((e) => {
       e.next()
       return
     }
+    // JANELA DE SEGURANÇA (02/11): só manda depois que a fila gerou de fato.
+    // Evita e-mail de teste/erro se alguém mexer no registro dentro da janela.
+    if (String(rec.getString('cobranca_status') || '') !== 'gerada') {
+      e.next()
+      return
+    }
 
     const apiKey = $secrets.get('BREVO_API_KEY')
     const senderEmail = $secrets.get('BREVO_SENDER_EMAIL') || 'julianacrc@icloud.com'

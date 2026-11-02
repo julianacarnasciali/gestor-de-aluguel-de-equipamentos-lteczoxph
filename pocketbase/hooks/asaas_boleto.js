@@ -1,274 +1,77 @@
-// Hook: ao lançar um fechamento, cria cliente + boleto no Asaas.
-// After-success: roda APÓS o commit — falha externa não desfaz o fechamento.
-// Tudo inline no callback (escopo do JSVM) e com try/catch total: erro do Asaas
-// é LOGADO, nunca quebra a resposta do create.
+// Hook: agenda a cobrança do fechamento em vez de gerar na hora.
+//
+// MUDANÇA 02/11/2026 (pedido da Juliana): antes, criar um fechamento gerava
+// boleto + NFS-e no mesmo instante. Se o lançamento estava errado ou era teste,
+// o documento fiscal já tinha saído e o e-mail já tinha ido ao cliente.
+//
+// Agora o registro nasce em "aguardando" e só gera depois da janela
+// configurada (config.janela_cobranca_minutos, padrão 60 min). Quem gera é o
+// cron do cobranca_agendada.js — este hook apenas marca a hora.
+//
+// IMPORTANTE: este arquivo NÃO gera mais boleto nem nota. Toda a geração vive
+// em cobranca_agendada.js, num lugar só, para as duas coleções.
 onRecordAfterCreateSuccess((e) => {
   try {
     const rec = e.record
+    if (rec.collection().name !== 'fechamentos') {
+      e.next()
+      return
+    }
+
     const total = Number(rec.getString('valor_final')) || Number(rec.getString('total')) || 0
     if (!total || total <= 0) {
       e.next()
       return
     }
 
-    const apiKey = $secrets.get('ASAAS_API_KEY')
-    const base = $secrets.get('ASAAS_BASE_URL') || 'https://api-sandbox.asaas.com/v3'
-    if (!apiKey) {
-      console.warn('[asaas] sem ASAAS_API_KEY — boleto não gerado para', rec.id)
+    // já veio com cobrança? (importação/seed) não mexe
+    if (rec.getString('cobranca_status')) {
       e.next()
       return
     }
 
-    // 1) empresa (CNPJ/nome/contato)
-    let empresa = null
+    let minutos = 60
     try {
-      empresa = $app.findRecordById('empresas', rec.getString('empresa'))
+      const cfgs = $app.findRecordsByFilter('config', 'id != ""', '', 1, 0)
+      if (cfgs.length > 0) {
+        const v = Number(cfgs[0].get('janela_cobranca_minutos') || 0)
+        if (v > 0) minutos = v
+      }
     } catch (_) {}
 
-    const doc = empresa ? String(empresa.getString('cnpj_cpf') || '').replace(/\D/g, '') : ''
-    const nome = empresa ? empresa.getString('nome') : 'Cliente LCCA'
-    const email =
-      String(
-        (empresa && (empresa.getString('email') || empresa.getString('responsavel_email'))) || '',
-      ) || ''
-    const fone = empresa ? String(empresa.getString('telefone') || '').replace(/\D/g, '') : ''
-    // Asaas exige celular em mobilePhone (9 dígitos com DDD); fixo vai em phone.
-    // Sem a separação, telefone fixo no campo de celular = e-mail de erro do Asaas.
-    const fixo = fone.length === 10 ? fone : ''
-    const cel = fone.length === 11 ? fone : ''
-    const enderecoTxt = empresa ? String(empresa.getString('endereco') || '') : ''
-    const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
-    let customerId = String((empresa && empresa.getString('asaas_customer_id')) || '')
-
-    // 2) cliente no Asaas: reutiliza ID salvo, senão busca por cpfCnpj, senão cria
-    try {
-      if (!customerId && doc) {
-        const r1 = $http.send({ url: base + '/customers?cpfCnpj=' + doc, method: 'GET', headers })
-        if (r1.statusCode === 200 && r1.json.totalCount > 0) customerId = r1.json.data[0].id
-      }
-      if (!customerId) {
-        const corpo = { name: nome, externalReference: String(empresa ? empresa.id : rec.id) }
-        if (doc) corpo.cpfCnpj = doc
-        if (email) corpo.email = email
-        if (cel) corpo.mobilePhone = cel
-        if (fixo) corpo.phone = fixo
-        if (enderecoTxt) {
-          // formato do banco: "Rua, N, Bairro, Cidade - UF, CEP" (5 partes; às vezes 4)
-          // parse antigo (4 partes) metia o BAIRRO na cidade e perdia o CEP -> NF falhava
-          const partes = enderecoTxt
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-          let rua = '',
-            numero = '',
-            bairro = '',
-            cidUf = '',
-            cepP = ''
-          if (partes.length >= 5) {
-            rua = partes[0]
-            numero = partes[1]
-            bairro = partes[2]
-            cidUf = partes[3]
-            cepP = partes[4]
-          } else if (partes.length === 4) {
-            rua = partes[0]
-            numero = partes[1]
-            cidUf = partes[2]
-            cepP = partes[3]
-          }
-          if (rua) corpo.address = rua
-          if (numero) corpo.addressNumber = numero
-          if (bairro) corpo.province = bairro
-          const cidadeUf = cidUf.split('-').map((s) => s.trim())
-          if (cidadeUf[0]) corpo.cityName = cidadeUf[0]
-          if (cidadeUf[1]) corpo.state = cidadeUf[1]
-          const cepLimpo = cepP.replace(/\D/g, '')
-          if (cepLimpo.length === 8) corpo.postalCode = cepLimpo
-          if (partes.length > 5) corpo.addressComplement = partes.slice(5).join(', ')
-        }
-        const r2 = $http.send({
-          url: base + '/customers',
-          method: 'POST',
-          headers,
-          body: JSON.stringify(corpo),
-        })
-        if (r2.statusCode === 200) customerId = r2.json.id
-        else
-          console.warn(
-            '[asaas] criar customer falhou',
-            r2.statusCode,
-            JSON.stringify(r2.json).slice(0, 300),
-          )
-      }
-      // cliente existente pode estar sem e-mail/endereço (exigidos pela NFS-e) — atualiza
-      if (customerId && (email || enderecoTxt)) {
-        try {
-          const corpoUpd = {}
-          if (email) corpoUpd.email = email
-          if (cel) corpoUpd.mobilePhone = cel
-          if (fixo) corpoUpd.phone = fixo
-          if (enderecoTxt) {
-            // mesmo parse de 5 partes do bloco de criação (bairro ≠ cidade)
-            const partes = enderecoTxt
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-            let rua = '',
-              numero = '',
-              bairro = '',
-              cidUf = '',
-              cepP = ''
-            if (partes.length >= 5) {
-              rua = partes[0]
-              numero = partes[1]
-              bairro = partes[2]
-              cidUf = partes[3]
-              cepP = partes[4]
-            } else if (partes.length === 4) {
-              rua = partes[0]
-              numero = partes[1]
-              cidUf = partes[2]
-              cepP = partes[3]
-            }
-            if (rua) corpoUpd.address = rua
-            if (numero) corpoUpd.addressNumber = numero
-            if (bairro) corpoUpd.province = bairro
-            const cidadeUf = cidUf.split('-').map((s) => s.trim())
-            if (cidadeUf[0]) corpoUpd.cityName = cidadeUf[0]
-            if (cidadeUf[1]) corpoUpd.state = cidadeUf[1]
-            const cepLimpo = cepP.replace(/\D/g, '')
-            if (cepLimpo.length === 8) corpoUpd.postalCode = cepLimpo
-          }
-          if (Object.keys(corpoUpd).length > 0) {
-            const rU = $http.send({
-              url: base + '/customers/' + customerId,
-              method: 'PUT',
-              headers,
-              body: JSON.stringify(corpoUpd),
-            })
-            if (rU.statusCode !== 200) {
-              console.warn(
-                '[asaas] atualizar customer falhou',
-                rU.statusCode,
-                JSON.stringify(rU.json).slice(0, 300),
-              )
-            }
-          }
-        } catch (errU) {
-          console.warn('[asaas] erro update customer', errU)
-        }
-      }
-      if (customerId && empresa && !empresa.getString('asaas_customer_id')) {
-        empresa.set('asaas_customer_id', customerId)
-        $app.save(empresa)
-      }
-    } catch (err) {
-      console.warn('[asaas] erro customer', err)
+    // DateTime só aceita string de data; o offset sai do JavaScript puro.
+    const fmt = (ms) => {
+      const d = new Date(ms)
+      const p = (n) => String(n).padStart(2, '0')
+      return (
+        d.getUTCFullYear() +
+        '-' +
+        p(d.getUTCMonth() + 1) +
+        '-' +
+        p(d.getUTCDate()) +
+        ' ' +
+        p(d.getUTCHours()) +
+        ':' +
+        p(d.getUTCMinutes()) +
+        ':' +
+        p(d.getUTCSeconds()) +
+        '.000Z'
+      )
     }
-
-    // 3) boleto
-    let paymentId = ''
-    try {
-      if (customerId) {
-        const r3 = $http.send({
-          url: base + '/payments',
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            customer: customerId,
-            billingType: 'BOLETO',
-            value: total,
-            dueDate: String(
-              rec.getString('data_vencimento') || rec.getString('data_emissao') || '',
-            ).slice(0, 10),
-            description: 'Locação de equipamentos — competência ' + rec.getString('competencia'),
-            externalReference: rec.id,
-          }),
-        })
-        if (r3.statusCode === 200) {
-          paymentId = r3.json.id || ''
-          rec.set('asaas_customer_id', customerId)
-          rec.set('asaas_payment_id', paymentId)
-          rec.set('asaas_boleto_url', r3.json.bankSlipUrl || '')
-          rec.set('asaas_linha_digitavel', r3.json.identificationField || '')
-          $app.save(rec)
-          console.log('[asaas] boleto criado', paymentId, 'para fechamento', rec.id)
-        } else {
-          console.warn(
-            '[asaas] criar payment falhou',
-            r3.statusCode,
-            JSON.stringify(r3.json).slice(0, 300),
-          )
-        }
-      }
-    } catch (err) {
-      console.warn('[asaas] erro payment', err)
-    }
-
-    // 4) NFS-e (somente empresas que emitem nota) — agendada vinculada ao boleto
-    try {
-      if (customerId && empresa && empresa.getBool('emite_nf')) {
-        const corpoNF = {
-          customer: customerId,
-          value: total,
-          deductions: 0,
-          effectiveDate: String(
-            rec.getString('data_emissao') || rec.getString('data_vencimento') || '',
-          ).slice(0, 10),
-          serviceDescription:
-            'Locação de equipamentos — competência ' + rec.getString('competencia'),
-          observations: 'Ref. contrato de locação de bens móveis — LCCA Tecnologia',
-          externalReference: rec.id,
-        }
-        if (paymentId) corpoNF.payment = paymentId
-        // impostos: serviço 14.02.01 (assistência técnica) SOFRE ISS — alíquota
-        // reduzida de Curitiba 2,01% (informada pela contabilidade 06/10).
-        // Simples: PIS/COFINS/CSLL/IR/INSS zerados na nota (recolhe via DAS).
-        // MÊS QUE VEM: contabilidade reavalia o código do serviço (14.02.01 é
-        // paliativo — locação pura não pode ter NF; decisão dela 06/10).
-        corpoNF.taxes = {
-          retainIss: false,
-          iss: 2.01,
-          pis: 0,
-          cofins: 0,
-          csll: 0,
-          ir: 0,
-          inss: 0,
-        }
-        // serviço municipal (contabilidade 06/10): 14.02.01 assistência técnica —
-        // suporte de TI e impressoras/multifuncionais do contrato mensal. NBS 1.2001.20.00,
-        // CNAE 9511800 (já configurados nas informações fiscais da conta).
-        corpoNF.municipalServiceCode = '14.02.01'
-        corpoNF.municipalServiceName = 'Assistência técnica'
-        corpoNF.serviceDescription =
-          'Prestação de serviços de suporte de TI e impressoras e multifuncionais referentes ao contrato mensal — competência ' +
-          rec.getString('competencia')
-
-        const rNF = $http.send({
-          url: base + '/invoices',
-          method: 'POST',
-          headers,
-          body: JSON.stringify(corpoNF),
-        })
-        if (rNF.statusCode === 200) {
-          rec.set('asaas_invoice_id', rNF.json.id || '')
-          rec.set('asaas_invoice_status', rNF.json.status || '')
-          rec.set('asaas_invoice_url', rNF.json.pdfUrl || rNF.json.externalPdfUrl || '')
-          $app.save(rec)
-          console.log('[asaas] NFS-e agendada', rNF.json.id, 'para fechamento', rec.id)
-        } else {
-          console.warn(
-            '[asaas] criar invoice falhou',
-            rNF.statusCode,
-            JSON.stringify(rNF.json).slice(0, 300),
-          )
-        }
-      }
-    } catch (err) {
-      console.warn('[asaas] erro invoice', err)
-    }
+    const agoraMs = Date.now()
+    rec.set('cobranca_agendada_em', fmt(agoraMs))
+    rec.set('cobranca_processar_em', fmt(agoraMs + minutos * 60 * 1000))
+    rec.set('cobranca_status', 'aguardando')
+    $app.save(rec)
+    console.log(
+      '[fechamento] cobranca agendada p/',
+      rec.id,
+      'em',
+      minutos,
+      'min — boleto/NF/e-mail NAO foram gerados',
+    )
   } catch (err) {
-    console.warn('[asaas] erro geral no hook', err)
+    console.warn('[fechamento] erro ao agendar cobranca', err)
   }
   e.next()
 }, 'fechamentos')

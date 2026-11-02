@@ -555,6 +555,120 @@ routerAdd('POST', '/backend/v1/manutencao/asaas-customer-separar', (e) => {
   })
 })
 
+// Cancela a COBRANÇA AGENDADA de um lançamento antes de ela ser gerada.
+// Dentro da janela de segurança (padrão 60 min) nada foi enviado ao Asaas nem à
+// prefeitura, então cancelar aqui não gera documento fiscal nem contábil.
+//
+//   POST /backend/v1/cobranca/cancelar { "colecao": "fechamentos|servicos", "id": "..." }
+//
+// Autenticado por login do sistema OU pelo token de manutenção.
+routerAdd('POST', '/backend/v1/cobranca/cancelar', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!e.auth && (!token || got !== token)) return e.unauthorizedError('login necessario')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const id = String((body && body.id) || '')
+  if (colecao !== 'fechamentos' && colecao !== 'servicos')
+    return e.badRequestError('colecao invalida')
+  if (!id) return e.badRequestError('id obrigatorio')
+
+  let rec = null
+  try {
+    rec = $app.findRecordById(colecao, id)
+  } catch (_) {}
+  if (!rec) return e.badRequestError('registro nao encontrado')
+
+  const status = String(rec.getString('cobranca_status') || '')
+  if (status === 'gerada') {
+    return e.badRequestError(
+      'Cobranca JA GERADA (boleto ' +
+        String(rec.getString('asaas_payment_id') || '') +
+        '). Para desfazer, cancele o boleto e a NF no Asaas e depois marque como cancelada.',
+    )
+  }
+  if (status === 'gerando') {
+    return e.badRequestError('Cobranca em processamento agora — tente em 1 minuto.')
+  }
+
+  rec.set('cobranca_status', 'cancelada')
+  rec.set('cobranca_erro', '')
+  $app.save(rec)
+  console.log('[cobranca] cancelada pelo usuario', colecao, id)
+  return e.json(200, { ok: true, colecao: colecao, id: id, status: 'cancelada' })
+})
+
+// Religa uma cobrança cancelada (dentro da janela), recalculando o horário.
+//   POST /backend/v1/cobranca/reativar { "colecao": "...", "id": "..." }
+routerAdd('POST', '/backend/v1/cobranca/reativar', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!e.auth && (!token || got !== token)) return e.unauthorizedError('login necessario')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const id = String((body && body.id) || '')
+  const minutosBody = body && body.minutos !== undefined ? Number(body.minutos) : 0
+  if (colecao !== 'fechamentos' && colecao !== 'servicos')
+    return e.badRequestError('colecao invalida')
+  if (!id) return e.badRequestError('id obrigatorio')
+
+  let rec = null
+  try {
+    rec = $app.findRecordById(colecao, id)
+  } catch (_) {}
+  if (!rec) return e.badRequestError('registro nao encontrado')
+  if (String(rec.getString('cobranca_status') || '') === 'gerada')
+    return e.badRequestError('Cobranca ja gerada — nada a reativar.')
+
+  let minutos = minutosBody > 0 ? minutosBody : 0
+  if (!minutos) {
+    try {
+      const cfgs = $app.findRecordsByFilter('config', 'id != ""', '', 1, 0)
+      if (cfgs.length > 0) minutos = Number(cfgs[0].get('janela_cobranca_minutos') || 0) || 60
+    } catch (_) {
+      minutos = 60
+    }
+  }
+
+  const fmtIso = (ms) => {
+    const d = new Date(ms)
+    const p = (n) => String(n).padStart(2, '0')
+    return (
+      d.getUTCFullYear() +
+      '-' +
+      p(d.getUTCMonth() + 1) +
+      '-' +
+      p(d.getUTCDate()) +
+      ' ' +
+      p(d.getUTCHours()) +
+      ':' +
+      p(d.getUTCMinutes()) +
+      ':' +
+      p(d.getUTCSeconds()) +
+      '.000Z'
+    )
+  }
+  rec.set('cobranca_agendada_em', fmtIso(Date.now()))
+  rec.set('cobranca_processar_em', fmtIso(Date.now() + minutos * 60000))
+  rec.set('cobranca_status', 'aguardando')
+  rec.set('tentativas_cobranca', 0)
+  rec.set('cobranca_erro', '')
+  $app.save(rec)
+  return e.json(200, {
+    ok: true,
+    minutos: minutos,
+    processar_em: rec.getString('cobranca_processar_em'),
+  })
+})
+
 // Consulta um pagamento no Asaas (para conferência — não altera nada).
 //   POST /backend/v1/manutencao/asaas-pagamento { "paymentId": "pay_..." }
 routerAdd('POST', '/backend/v1/manutencao/asaas-pagamento', (e) => {
