@@ -628,8 +628,12 @@ routerAdd('POST', '/backend/v1/cobranca/reativar', (e) => {
   if (String(rec.getString('cobranca_status') || '') === 'gerada')
     return e.badRequestError('Cobranca ja gerada — nada a reativar.')
 
-  let minutos = minutosBody > 0 ? minutosBody : 0
-  if (!minutos) {
+  // minutos = 0 explícito significa "gera já" (usado em teste e em quem quer
+  // gerar na hora de propósito). Ausente = usa a janela da config.
+  let minutos = 0
+  if (body && body.minutos !== undefined && body.minutos !== null) {
+    minutos = Number(body.minutos) || 0
+  } else {
     try {
       const cfgs = $app.findRecordsByFilter('config', 'id != ""', '', 1, 0)
       if (cfgs.length > 0) minutos = Number(cfgs[0].get('janela_cobranca_minutos') || 0) || 60
