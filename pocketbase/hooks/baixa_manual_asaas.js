@@ -79,20 +79,21 @@ onRecordAfterUpdateSuccess((e) => {
       $app.save(rec)
       console.log('[baixa-asaas] baixa espelhada', rec.id, paymentId, dataPag)
     } else {
-      const msg = JSON.stringify(r1.json || {}).toLowerCase()
-      // já recebido / já confirmado = nada a fazer, só registrar
-      const jaRecebido =
-        msg.indexOf('já recebida') >= 0 ||
-        msg.indexOf('ja recebida') >= 0 ||
-        msg.indexOf('já confirmada') >= 0 ||
-        msg.indexOf('ja confirmada') >= 0 ||
-        msg.indexOf('already') >= 0 ||
-        msg.indexOf('estorno') >= 0 ||
-        msg.indexOf('chargeback') >= 0
-      rec.set('asaas_status', jaRecebido ? 'JA_RECEBIDO' : 'ERRO_' + String(r1.statusCode))
-      rec.set('asaas_baixa_dinheiro', jaRecebido)
-      $app.save(rec)
-      console.warn('[baixa-asaas] Asaas recusou', paymentId, r1.statusCode, msg.slice(0, 250))
+      // 400 no receiveInCash = o Asaas não aceita baixar essa cobrança (já
+      // recebida, já confirmada, cancelada ou em estorno). Não é falha do
+      // Gestor: o lançamento local já está pago. Marca e não repete.
+      // 5xx = Asaas fora do ar → deixa para a próxima edição.
+      const msg = JSON.stringify(r1.json || {}).slice(0, 300)
+      if (r1.statusCode === 400 || r1.statusCode === 404) {
+        rec.set('asaas_status', 'JA_RECEBIDO')
+        rec.set('asaas_baixa_dinheiro', true)
+        $app.save(rec)
+        console.log('[baixa-asaas] Asaas nao precisava de baixa', paymentId, msg)
+      } else {
+        rec.set('asaas_status', 'ERRO_' + String(r1.statusCode))
+        $app.save(rec)
+        console.warn('[baixa-asaas] falha ao falar com Asaas', paymentId, r1.statusCode, msg)
+      }
     }
   } catch (err) {
     console.warn('[baixa-asaas] erro geral', err)
