@@ -102,6 +102,38 @@ export default function Financeiro() {
     carregar()
   }
 
+  // Emite AGORA, sem esperar a janela de segurança. Usado quando precisa mandar
+  // boleto/nota naquele instante para o cliente.
+  const emitirAgora = async (colecao: 'fechamentos' | 'servicos', id: string) => {
+    const ok = window.confirm(
+      'Emitir agora, sem esperar a janela?\n\n' +
+        'O boleto e a nota fiscal (se o cliente emite) serão gerados neste momento ' +
+        'e o e-mail vai para o cliente. Depois de emitido, não dá mais para cancelar por aqui.',
+    )
+    if (!ok) return
+    try {
+      const r = (await pb.send('/backend/v1/cobranca/processar', {
+        method: 'POST',
+        body: { colecao, id, forcar: true },
+      })) as { paymentId?: string; invoiceStatus?: string }
+      window.alert(
+        r?.paymentId
+          ? 'Cobrança emitida.\n\nBoleto: ' +
+              r.paymentId +
+              (r.invoiceStatus ? '\nNota fiscal: ' + r.invoiceStatus : '\nSem nota fiscal.')
+          : 'Cobrança processada.',
+      )
+      carregar()
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { message?: string })?.message ||
+        ''
+      window.alert('Não foi possível emitir. ' + (msg || 'Veja o erro no lançamento.'))
+      carregar()
+    }
+  }
+
   // Cancela a cobrança AGENDADA dentro da janela de segurança: nada foi gerado
   // ainda, então não há boleto, nota fiscal nem e-mail para o cliente.
   const cancelarCobranca = async (colecao: 'fechamentos' | 'servicos', id: string) => {
@@ -353,14 +385,24 @@ export default function Financeiro() {
                           <>
                             {(l as unknown as { cobranca_status?: string }).cobranca_status ===
                               'aguardando' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-red-300 text-red-700 hover:bg-red-50"
-                                onClick={() => cancelarCobranca('fechamentos', l.id)}
-                              >
-                                Cancelar cobrança
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                                  onClick={() => emitirAgora('fechamentos', l.id)}
+                                >
+                                  Emitir agora
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-red-300 text-red-700 hover:bg-red-50"
+                                  onClick={() => cancelarCobranca('fechamentos', l.id)}
+                                >
+                                  Cancelar cobrança
+                                </Button>
+                              </>
                             )}
                             <Button
                               size="sm"
@@ -466,14 +508,24 @@ export default function Financeiro() {
                           <>
                             {(s as unknown as { cobranca_status?: string }).cobranca_status ===
                               'aguardando' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-red-300 text-red-700 hover:bg-red-50"
-                                onClick={() => cancelarCobranca('servicos', s.id)}
-                              >
-                                Cancelar cobrança
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-teal-600 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                                  onClick={() => emitirAgora('servicos', s.id)}
+                                >
+                                  Emitir agora
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-red-300 text-red-700 hover:bg-red-50"
+                                  onClick={() => cancelarCobranca('servicos', s.id)}
+                                >
+                                  Cancelar cobrança
+                                </Button>
+                              </>
                             )}
                             <Button
                               size="sm"
