@@ -53,6 +53,16 @@ onRecordAfterUpdateSuccess((e) => {
     const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
     const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
 
+    // REIVINDICA ANTES DE CHAMAR (corrigido 02/11).
+    // Gravar asaas_baixa_dinheiro depois da chamada criava LAÇO INFINITO: o save
+    // do próprio hook dispara o hook de novo, e sem a flag ele chamava o Asaas
+    // outra vez. O log de 02/11 14:09 mostrou 13 chamadas em 3 segundos.
+    // Agora a flag é gravada primeiro; se o Asaas falhar de verdade (5xx),
+    // liberamos de novo para a próxima edição.
+    rec.set('asaas_baixa_dinheiro', true)
+    rec.set('asaas_baixa_em', new Date().toISOString())
+    $app.save(rec)
+
     let dataPag = String(rec.getString('data_pagamento') || '').slice(0, 10)
     if (!dataPag) dataPag = new Date().toISOString().slice(0, 10)
     const valor = Number(rec.get('valor_final') || rec.get('total') || 0)
@@ -73,23 +83,21 @@ onRecordAfterUpdateSuccess((e) => {
     )
 
     if (r1.statusCode === 200) {
-      rec.set('asaas_baixa_dinheiro', true)
-      rec.set('asaas_baixa_em', new Date().toISOString())
       rec.set('asaas_status', String(r1.json.status || 'RECEIVED_IN_CASH'))
       $app.save(rec)
       console.log('[baixa-asaas] baixa espelhada', rec.id, paymentId, dataPag)
     } else {
       // 400 no receiveInCash = o Asaas não aceita baixar essa cobrança (já
       // recebida, já confirmada, cancelada ou em estorno). Não é falha do
-      // Gestor: o lançamento local já está pago. Marca e não repete.
-      // 5xx = Asaas fora do ar → deixa para a próxima edição.
+      // Gestor: o lançamento local já está pago. Mantém a flag e não repete.
+      // 5xx = Asaas fora do ar → LIBERA a flag para tentar na próxima edição.
       const msg = JSON.stringify(r1.json || {}).slice(0, 300)
       if (r1.statusCode === 400 || r1.statusCode === 404) {
         rec.set('asaas_status', 'JA_RECEBIDO')
-        rec.set('asaas_baixa_dinheiro', true)
         $app.save(rec)
         console.log('[baixa-asaas] Asaas nao precisava de baixa', paymentId, msg)
       } else {
+        rec.set('asaas_baixa_dinheiro', false)
         rec.set('asaas_status', 'ERRO_' + String(r1.statusCode))
         $app.save(rec)
         console.warn('[baixa-asaas] falha ao falar com Asaas', paymentId, r1.statusCode, msg)
@@ -134,6 +142,12 @@ onRecordAfterUpdateSuccess((e) => {
     }
     const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
     const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+
+    // reivindica ANTES de chamar — mesmo motivo do bloco de fechamentos:
+    // gravar a flag depois criava laço infinito de chamadas ao Asaas.
+    rec.set('asaas_baixa_dinheiro', true)
+    rec.set('asaas_baixa_em', new Date().toISOString())
+    $app.save(rec)
 
     let dataPag = String(rec.getString('data_pagamento') || '').slice(0, 10)
     if (!dataPag) dataPag = new Date().toISOString().slice(0, 10)
