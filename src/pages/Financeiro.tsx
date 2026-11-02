@@ -102,6 +102,31 @@ export default function Financeiro() {
     carregar()
   }
 
+  // Cancela a cobrança AGENDADA dentro da janela de segurança: nada foi gerado
+  // ainda, então não há boleto, nota fiscal nem e-mail para o cliente.
+  const cancelarCobranca = async (colecao: 'fechamentos' | 'servicos', id: string) => {
+    const ok = window.confirm(
+      'Cancelar esta cobrança?\n\nEla ainda não virou boleto nem nota fiscal, ' +
+        'então nada é enviado ao cliente e nada vai para o banco. Depois da janela ' +
+        'não é mais possível cancelar por aqui.',
+    )
+    if (!ok) return
+    try {
+      await pb.send('/backend/v1/cobranca/cancelar', {
+        method: 'POST',
+        body: { colecao, id },
+      })
+      carregar()
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message || ''
+      window.alert(
+        'Não foi possível cancelar. ' +
+          (msg || 'Se o boleto já foi gerado, cancele no Asaas e aqui marque como pago.'),
+      )
+    }
+  }
+
   const linhasComNome = useMemo(
     () =>
       linhas.map((l) => ({
@@ -325,17 +350,30 @@ export default function Financeiro() {
                             </Button>
                           </div>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-teal-600 text-teal-700 hover:bg-teal-50"
-                            onClick={() => {
-                              setBaixaData(hoje())
-                              setBaixaId(l.id)
-                            }}
-                          >
-                            Dar baixa
-                          </Button>
+                          <>
+                            {(l as unknown as { cobranca_status?: string }).cobranca_status ===
+                              'aguardando' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-300 text-red-700 hover:bg-red-50"
+                                onClick={() => cancelarCobranca('fechamentos', l.id)}
+                              >
+                                Cancelar cobrança
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-teal-600 text-teal-700 hover:bg-teal-50"
+                              onClick={() => {
+                                setBaixaData(hoje())
+                                setBaixaId(l.id)
+                              }}
+                            >
+                              Dar baixa
+                            </Button>
+                          </>
                         ))}
                     </div>
                   )
@@ -425,17 +463,30 @@ export default function Financeiro() {
                             </Button>
                           </div>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-teal-600 text-teal-700 hover:bg-teal-50"
-                            onClick={() => {
-                              setBaixaData(hoje())
-                              setBaixaId(s.id)
-                            }}
-                          >
-                            Dar baixa
-                          </Button>
+                          <>
+                            {(s as unknown as { cobranca_status?: string }).cobranca_status ===
+                              'aguardando' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-300 text-red-700 hover:bg-red-50"
+                                onClick={() => cancelarCobranca('servicos', s.id)}
+                              >
+                                Cancelar cobrança
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-teal-600 text-teal-700 hover:bg-teal-50"
+                              onClick={() => {
+                                setBaixaData(hoje())
+                                setBaixaId(s.id)
+                              }}
+                            >
+                              Dar baixa
+                            </Button>
+                          </>
                         ))}
                     </div>
                   )
