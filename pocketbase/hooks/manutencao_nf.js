@@ -48,7 +48,7 @@ routerAdd('GET', '/backend/v1/cnpj', (e) => {
     return e.json(200, {
       fonte: 'receitaws',
       razao_social: d.nome || '',
-      nome_fantasia: d.fantasia || '',
+      fantasia: d.fantasia || '',
       logradouro: d.logradouro || '',
       numero: d.numero || '',
       complemento: d.complemento || '',
@@ -68,135 +68,6 @@ routerAdd('POST', '/backend/v1/manutencao/ver', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
   if (!token || got !== token) return e.unauthorizedError('token invalido')
-
-  let body = null
-  try {
-    body = e.requestInfo().body
-  } catch (_) {}
-  const colecao = String((body && body.colecao) || '')
-  const filtro = String((body && body.filtro) || '')
-  const campos = (body && body.campos) || []
-  const sort = String((body && body.sort) || '-created')
-  const params = (body && body.params) || {}
-  if (!colecao) return e.badRequestError('colecao obrigatoria')
-
-  const lista = $app.findRecordsByFilter(colecao, filtro || 'id != ""', sort, 20, 0, params)
-  const saida = []
-  for (const r of lista) {
-    const o = { id: r.id }
-    for (const c of campos) {
-      try {
-        o[c] = r.get(c)
-      } catch (_) {
-        o[c] = null
-      }
-    }
-    saida.push(o)
-  }
-  return e.json(200, { total: saida.length, items: saida })
-})
-
-routerAdd('POST', '/backend/v1/manutencao/criar-registro', (e) => {
-  const token = $secrets.get('MAESTRO_TOKEN') || ''
-  const got = e.request.header.get('x-maestro-token') || ''
-  if (!token || got !== token) return e.unauthorizedError('token invalido')
-
-  let body = null
-  try {
-    body = e.requestInfo().body
-  } catch (_) {}
-  const colecao = String((body && body.colecao) || '')
-  const campos = (body && body.campos) || {}
-  if (!colecao || colecao === 'users') return e.badRequestError('colecao invalida')
-  if (!campos || typeof campos !== 'object') return e.badRequestError('campos obrigatorios')
-
-  // coleções permitidas (cadastro)
-  const ok = ['empresas', 'contratos', 'equipamentos', 'leituras']
-  if (ok.indexOf(colecao) === -1) return e.badRequestError('colecao nao permitida')
-
-  const nova = new Record($app.findCollectionByNameOrId(colecao))
-  for (const k in campos) {
-    try {
-      nova.set(k, campos[k])
-    } catch (_) {}
-  }
-  $app.save(nova)
-  console.log('[manutencao] registro criado', colecao, nova.id)
-  return e.json(200, { ok: true, id: nova.id })
-})
-
-routerAdd('POST', '/backend/v1/manutencao/registro-patch', (e) => {
-  const token = $secrets.get('MAESTRO_TOKEN') || ''
-  const got = e.request.header.get('x-maestro-token') || ''
-  if (!token || got !== token) return e.unauthorizedError('token invalido')
-
-  let body = null
-  try {
-    body = e.requestInfo().body
-  } catch (_) {}
-  const colecao = String((body && body.colecao) || '')
-  const id = String((body && body.id) || '')
-  if (!colecao || !id) return e.badRequestError('colecao e id obrigatorios')
-  const ok = ['empresas', 'contratos', 'equipamentos', 'leituras', 'servicos']
-  if (ok.indexOf(colecao) === -1) return e.badRequestError('colecao nao permitida')
-
-  let rec = null
-  try {
-    rec = $app.findRecordById(colecao, id)
-  } catch (_) {}
-  if (!rec) return e.badRequestError('registro nao encontrado')
-
-  const mudou = []
-  for (const k in body) {
-    if (k === 'colecao' || k === 'id') continue
-    try {
-      rec.set(k, body[k])
-      mudou.push(k)
-    } catch (_) {}
-  }
-  if (mudou.length === 0) return e.badRequestError('nada para atualizar')
-  $app.save(rec)
-  console.log('[manutencao] registro atualizado', colecao, id, mudou.join(','))
-  return e.json(200, { ok: true, mudou })
-})
-
-routerAdd('POST', '/backend/v1/manutencao/empresa-patch', (e) => {
-  const token = $secrets.get('MAESTRO_TOKEN') || ''
-  const got = e.request.header.get('x-maestro-token') || ''
-  if (!token || got !== token) return e.unauthorizedError('token invalido')
-
-  let body = null
-  try {
-    body = e.requestInfo().body
-  } catch (_) {}
-  const id = String((body && body.id) || '')
-  if (!id) return e.badRequestError('id obrigatorio')
-  let empresa = null
-  try {
-    empresa = $app.findRecordById('empresas', id)
-  } catch (_) {}
-  if (!empresa) return e.badRequestError('empresa nao encontrada')
-
-  // so campos de cadastro/endereco — nada de financeiro
-  const permitidos = ['endereco', 'cep', 'email', 'responsavel_email', 'emite_nf']
-  const mudou = []
-  for (const k of permitidos) {
-    if (body && body[k] !== undefined) {
-      empresa.set(k, body[k])
-      mudou.push(k)
-    }
-  }
-  if (mudou.length === 0) return e.badRequestError('nada para atualizar')
-  $app.save(empresa)
-  console.log('[manutencao] empresa atualizada', id, mudou.join(','))
-  return e.json(200, { ok: true, mudou })
-})
-
-routerAdd('POST', '/backend/v1/manutencao/apagar-registros', (e) => {
-  const token = $secrets.get('MAESTRO_TOKEN') || ''
-  const got = e.request.header.get('x-maestro-token') || ''
-  if (!token || got !== token) return e.unauthorizedError('token invalido')
-
   let body = null
   try {
     body = e.requestInfo().body
@@ -204,21 +75,98 @@ routerAdd('POST', '/backend/v1/manutencao/apagar-registros', (e) => {
   const colecao = String((body && body.colecao) || '')
   const filtro = String((body && body.filtro) || '')
   if (!colecao || !filtro) return e.badRequestError('colecao e filtro obrigatorios')
-  const permitidas = ['leads', 'arquivos', 'chamados', 'empresas', 'equipamentos']
-  if (permitidas.indexOf(colecao) === -1) return e.badRequestError('colecao nao permitida')
-
-  const lista = $app.findRecordsByFilter(colecao, filtro, '', 500, 0)
-  let apagados = 0
-  for (const r of lista) {
-    try {
-      $app.delete(r)
-      apagados++
-    } catch (err) {
-      console.warn('[manutencao] falha ao apagar', r.id, err)
-    }
+  try {
+    const items = $app.findRecordsByFilter(colecao, filtro, '', 200, 0)
+    return e.json(200, { ok: true, total: items.length, items: items.map((r) => r.publicExport()) })
+  } catch (err) {
+    return e.badRequestError('erro: ' + String(err))
   }
-  console.log('[manutencao] apagados', apagados, 'de', colecao, '| filtro:', filtro)
-  return e.json(200, { ok: true, apagados })
+})
+
+routerAdd('POST', '/backend/v1/manutencao/criar-registro', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const dados = (body && body.dados) || null
+  if (!colecao || !dados) return e.badRequestError('colecao e dados obrigatorios')
+  try {
+    const col = $app.findCollectionByNameOrId(colecao)
+    const rec = new Record(col)
+    for (const k of Object.keys(dados)) rec.set(k, dados[k])
+    $app.save(rec)
+    return e.json(200, { ok: true, id: rec.id })
+  } catch (err) {
+    return e.badRequestError('erro: ' + String(err))
+  }
+})
+
+routerAdd('POST', '/backend/v1/manutencao/registro-patch', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const id = String((body && body.id) || '')
+  const dados = (body && body.dados) || null
+  if (!colecao || !id || !dados) return e.badRequestError('colecao, id e dados obrigatorios')
+  try {
+    const rec = $app.findRecordById(colecao, id)
+    for (const k of Object.keys(dados)) rec.set(k, dados[k])
+    $app.save(rec)
+    return e.json(200, { ok: true, id: rec.id })
+  } catch (err) {
+    return e.badRequestError('erro: ' + String(err))
+  }
+})
+
+routerAdd('POST', '/backend/v1/manutencao/empresa-patch', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const empresaId = String((body && body.empresaId) || '')
+  const dados = (body && body.dados) || null
+  if (!empresaId || !dados) return e.badRequestError('empresaId e dados obrigatorios')
+  try {
+    const rec = $app.findRecordById('empresas', empresaId)
+    for (const k of Object.keys(dados)) rec.set(k, dados[k])
+    $app.save(rec)
+    return e.json(200, { ok: true, id: rec.id })
+  } catch (err) {
+    return e.badRequestError('erro: ' + String(err))
+  }
+})
+
+routerAdd('POST', '/backend/v1/manutencao/apagar-registros', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const ids = (body && body.ids) || []
+  if (!colecao || !ids.length) return e.badRequestError('colecao e ids obrigatorios')
+  const apagados = []
+  for (const id of ids) {
+    try {
+      $app.delete($app.findRecordById(colecao, String(id)))
+      apagados.push(String(id))
+    } catch (_) {}
+  }
+  return e.json(200, { ok: true, apagados: apagados })
 })
 
 routerAdd('POST', '/backend/v1/manutencao/nf-cancelar', (e) => {
@@ -337,104 +285,104 @@ routerAdd('POST', '/backend/v1/manutencao/nf-reemitir', (e) => {
     if (cidadeUf[1]) corpoUpd.state = cidadeUf[1]
     const cepLimpo = cep.replace(/\D/g, '')
     if (cepLimpo.length === 8) corpoUpd.postalCode = cepLimpo
-    if (partes.length > 5) corpoUpd.addressComplement = partes.slice(5).join(', ')
-    if (customerId) {
-      const ru = $http.send({
-        url: base + '/customers/' + customerId,
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(corpoUpd),
-      })
-      if (ru.statusCode !== 200)
-        console.warn(
-          '[manutencao] update customer falhou',
-          ru.statusCode,
-          JSON.stringify(ru.json).slice(0, 200),
-        )
-    } else {
-      corpoUpd.cpfCnpj = doc
-      corpoUpd.externalReference = empresa.id
-      const rc = $http.send({
+    if (!customerId) {
+      corpoUpd.externalReference = empresaId
+      if (doc) corpoUpd.cpfCnpj = doc
+      const r2 = $http.send({
         url: base + '/customers',
         method: 'POST',
         headers,
         body: JSON.stringify(corpoUpd),
       })
-      if (rc.statusCode === 200) {
-        customerId = rc.json.id
+      if (r2.statusCode === 200) {
+        customerId = r2.json.id
         empresa.set('asaas_customer_id', customerId)
         $app.save(empresa)
-      } else {
-        return e.badRequestError(
-          'cliente no Asaas falhou: ' + JSON.stringify(rc.json).slice(0, 200),
-        )
       }
+    } else {
+      $http.send({
+        url: base + '/customers/' + customerId,
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(corpoUpd),
+      })
     }
-  } catch (errC) {
-    console.warn('[manutencao] erro customer', errC)
+  } catch (err) {
+    console.warn('[manutencao] erro customer na reemissao', err)
   }
-  if (!customerId) return e.badRequestError('sem cliente no Asaas')
+  if (!customerId) return e.badRequestError('sem customer no Asaas')
 
-  // 2) valor e vinculo com o payment
-  const valor =
-    Number(rec.getFloat('valor_final')) ||
-    Number(rec.getFloat('total')) ||
-    Number(rec.getFloat('valor')) ||
-    0
-  if (!valor || valor <= 0) return e.badRequestError('lancamento sem valor')
-  const paymentId = String(rec.getString('asaas_payment_id') || '')
+  const valor = Number(rec.get('valor_final') || rec.get('valor') || 0)
+  const venc = String(
+    rec.get('data_vencimento') || rec.get('data_emissao') || rec.get('data_servico') || '',
+  ).slice(0, 10)
+  const descricao = String(rec.get('descricao') || '')
+  const competencia = String(rec.get('competencia') || '')
 
-  // 3) agenda a NF de novo (data de emissao = hoje)
-  const competencia = rec.getString('competencia') || ''
-  const ehServico = colecao === 'servicos'
-  const descricaoServico = ehServico
-    ? String(rec.getString('descricao') || 'Serviço avulso')
-    : 'Prestação de serviços de suporte de TI e impressoras e multifuncionais referentes ao contrato mensal' +
-      (competencia ? ' — competência ' + competencia : '')
-
-  const hojeISO = new Date().toISOString().slice(0, 10)
-  const corpoNF = {
+  // 2) novo pagamento (o antigo pode estar cancelado/vencido)
+  const corpoPag = {
     customer: customerId,
+    billingType: 'BOLETO',
     value: valor,
-    deductions: 0,
-    effectiveDate: hojeISO,
-    serviceDescription: descricaoServico,
-    observations: ehServico
-      ? 'Serviço avulso — LCCA Tech'
-      : 'Ref. contrato de locação de bens móveis — LCCA Tech',
+    dueDate: venc,
+    description: descricao || 'Locação de equipamentos — competência ' + competencia,
     externalReference: rec.id,
-    municipalServiceCode: '14.02.01',
-    municipalServiceName: 'Assistência técnica',
-    taxes: { retainIss: false, iss: 2.01, pis: 0, cofins: 0, csll: 0, ir: 0, inss: 0 },
   }
-  if (paymentId) corpoNF.payment = paymentId
+  const rPag = $http.send({
+    url: base + '/payments',
+    method: 'POST',
+    headers,
+    body: JSON.stringify(corpoPag),
+  })
+  if (rPag.statusCode !== 200)
+    return e.badRequestError('Asaas payment: ' + JSON.stringify(rPag.json).slice(0, 250))
+  const pagamento = rPag.json
+  rec.set('asaas_payment_id', pagamento.id || '')
+  rec.set('asaas_boleto_url', pagamento.bankSlipUrl || '')
+  rec.set('asaas_linha_digitavel', pagamento.identificationField || '')
+  rec.set('asaas_customer_id', customerId)
+  $app.save(rec)
 
+  // 3) NFS-e nova, vinculada ao pagamento novo
   const rNF = $http.send({
     url: base + '/invoices',
     method: 'POST',
     headers,
-    body: JSON.stringify(corpoNF),
+    body: JSON.stringify({
+      customer: customerId,
+      payment: pagamento.id,
+      value: valor,
+      effectiveDate: venc,
+      serviceDescription: descricao || 'Locação de equipamentos — competência ' + competencia,
+      observations: 'Ref. contrato de locação de bens móveis — LCCA Tecnologia',
+      externalReference: rec.id,
+      taxes: { retainIss: false, iss: 2.01, pis: 0, cofins: 0, csll: 0, ir: 0, inss: 0 },
+      municipalServiceCode: '14.02.01',
+      municipalServiceName: 'Assistência técnica',
+    }),
   })
-  if (rNF.statusCode !== 200) {
+  if (rNF.statusCode === 200) {
+    rec.set('asaas_invoice_id', rNF.json.id || '')
+    rec.set('asaas_invoice_status', rNF.json.status || '')
+    rec.set('asaas_invoice_url', rNF.json.pdfUrl || rNF.json.externalPdfUrl || '')
+    $app.save(rec)
+  } else {
     console.warn(
-      '[manutencao] invoice falhou',
+      '[manutencao] nova NF falhou',
       rNF.statusCode,
       JSON.stringify(rNF.json).slice(0, 300),
     )
-    return e.badRequestError('Asaas: ' + JSON.stringify(rNF.json).slice(0, 250))
   }
 
-  rec.set('asaas_invoice_id', rNF.json.id || '')
-  rec.set('asaas_invoice_status', rNF.json.status || '')
-  rec.set('asaas_invoice_url', rNF.json.pdfUrl || rNF.json.externalPdfUrl || '')
-  $app.save(rec)
-  console.log('[manutencao] NFS-e reagendada', rNF.json.id, 'p/', colecao, rec.id)
-  return e.json(200, { ok: true, invoice: rNF.json.id, status: rNF.json.status })
+  return e.json(200, {
+    ok: true,
+    paymentId: pagamento.id,
+    invoiceId: rNF.statusCode === 200 ? rNF.json.id : '',
+    invoiceStatus: rNF.statusCode === 200 ? rNF.json.status : 'ERRO',
+  })
 })
 
-// Corrige telefone fixo/celular do cliente no Asaas (erro "Número de telefone
-// incorreto" = fixo no campo de celular). A chave ASAAS_API_KEY fica no cofre.
-//   POST /backend/v1/manutencao/asaas-telefone { "id": "<empresa>", "acao": "ver" | "corrigir" }
+// Traduz telefone do cadastro para os campos do Asaas: fixo -> phone, celular -> mobilePhone.
 routerAdd('POST', '/backend/v1/manutencao/asaas-telefone', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
@@ -444,11 +392,9 @@ routerAdd('POST', '/backend/v1/manutencao/asaas-telefone', (e) => {
   try {
     body = e.requestInfo().body
   } catch (_) {}
-  const empresaId = String((body && body.id) || '')
+  const empresaId = String((body && body.empresaId) || '')
   const acao = String((body && body.acao) || 'ver')
-  if (!empresaId) return e.badRequestError('id da empresa obrigatorio')
-  if (acao !== 'ver' && acao !== 'corrigir')
-    return e.badRequestError('acao invalida (ver|corrigir)')
+  if (!empresaId) return e.badRequestError('empresaId obrigatorio')
 
   let empresa = null
   try {
@@ -456,12 +402,11 @@ routerAdd('POST', '/backend/v1/manutencao/asaas-telefone', (e) => {
   } catch (_) {}
   if (!empresa) return e.badRequestError('empresa nao encontrada')
 
-  const customerId = String(empresa.getString('asaas_customer_id') || '')
-  if (!customerId) return e.badRequestError('empresa sem cliente no Asaas')
-
   const apiKey = $secrets.get('ASAAS_API_KEY')
   const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
   const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+  let customerId = String(empresa.getString('asaas_customer_id') || '')
+  if (!customerId) return e.badRequestError('empresa sem asaas_customer_id')
 
   const fone = String(empresa.getString('telefone') || '').replace(/\D/g, '')
   const fixo = fone.length === 10 ? fone : ''
@@ -498,5 +443,151 @@ routerAdd('POST', '/backend/v1/manutencao/asaas-telefone', (e) => {
     ok: true,
     atualizado: corpo,
     asaas: { phone: r2.json.phone, mobilePhone: r2.json.mobilePhone },
+  })
+})
+
+// Consulta um pagamento no Asaas (para conferência — não altera nada).
+//   POST /backend/v1/manutencao/asaas-pagamento { "paymentId": "pay_..." }
+routerAdd('POST', '/backend/v1/manutencao/asaas-pagamento', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const paymentId = String((body && body.paymentId) || '')
+  if (!paymentId) return e.badRequestError('paymentId obrigatorio')
+
+  const apiKey = $secrets.get('ASAAS_API_KEY')
+  const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
+  const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+  const r = $http.send({ url: base + '/payments/' + paymentId, method: 'GET', headers })
+  if (r.statusCode !== 200)
+    return e.badRequestError(
+      'Asaas: ' + String(r.statusCode) + ' ' + JSON.stringify(r.json).slice(0, 250),
+    )
+  const p = r.json
+  return e.json(200, {
+    ok: true,
+    id: p.id,
+    status: p.status,
+    value: p.value,
+    netValue: p.netValue,
+    dueDate: p.dueDate,
+    paymentDate: p.paymentDate,
+    clientPaymentDate: p.clientPaymentDate,
+    billingType: p.billingType,
+    description: p.description,
+    externalReference: p.externalReference,
+    customer: p.customer,
+    invoiceNumber: p.invoiceNumber,
+    confirmedDate: p.confirmedDate,
+    paymentReceivedInCash: p.paymentReceivedInCash,
+  })
+})
+
+// Baixa MANUAL no sistema -> recebe o boleto no Asaas como "recebido em dinheiro".
+// Espelho do que o Luiz faz no site do Asaas. Ação EXPLÍCITA: nunca automática.
+//   POST /backend/v1/manutencao/asaas-baixa-dinheiro { "colecao": "fechamentos|servicos", "id": "..." }
+routerAdd('POST', '/backend/v1/manutencao/asaas-baixa-dinheiro', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const colecao = String((body && body.colecao) || '')
+  const id = String((body && body.id) || '')
+  const dataPag = String((body && body.dataPagamento) || '').slice(0, 10)
+  if (colecao !== 'fechamentos' && colecao !== 'servicos')
+    return e.badRequestError('colecao invalida')
+  if (!id) return e.badRequestError('id obrigatorio')
+
+  let rec = null
+  try {
+    rec = $app.findRecordById(colecao, id)
+  } catch (_) {}
+  if (!rec) return e.badRequestError('registro nao encontrado')
+
+  const paymentId = String(rec.getString('asaas_payment_id') || '')
+  if (!paymentId) return e.badRequestError('registro sem asaas_payment_id')
+
+  const apiKey = $secrets.get('ASAAS_API_KEY')
+  const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
+  const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+
+  // 1) estado atual — não sobrescreve o que já está pago
+  const r0 = $http.send({ url: base + '/payments/' + paymentId, method: 'GET', headers })
+  if (r0.statusCode !== 200)
+    return e.badRequestError(
+      'Asaas GET: ' + String(r0.statusCode) + ' ' + JSON.stringify(r0.json).slice(0, 200),
+    )
+  const atual = String(r0.json.status || '')
+  if (atual === 'RECEIVED' || atual === 'CONFIRMED' || atual === 'RECEIVED_IN_CASH') {
+    return e.json(200, {
+      ok: true,
+      jaEstava: true,
+      statusAnterior: atual,
+      status: atual,
+      mensagem: 'O boleto já estava baixado no Asaas — nada foi alterado.',
+    })
+  }
+  if (atual === 'REFUNDED' || atual === 'REFUND_REQUESTED' || atual === 'CHARGEBACK_REQUESTED') {
+    return e.badRequestError('Boleto está em estorno/chargeback no Asaas — resolver por lá.')
+  }
+
+  // 2) baixa em dinheiro: recebe o valor total, na data informada (ou hoje)
+  const corpo = { paymentDate: dataPag || new Date().toISOString().slice(0, 10) }
+  let valorOriginal = Number(r0.json.value) || 0
+  let valor = valorOriginal
+  // torneio de valor (ex.: dinheiro com desconto/arredondamento) — o chamador decide
+  const informado =
+    body && body.valor !== undefined && body.valor !== null ? Number(body.valor) : NaN
+  if (!Number.isNaN(informado) && informado > 0) valor = informado
+  corpo.value = valor
+  if (valor !== valorOriginal) {
+    // Asaas exige notifyCustomer=false p/ alterar valor na baixa; só quando há ajuste
+    corpo.notifyCustomer = false
+  }
+
+  const r1 = $http.send({
+    url: base + '/payments/' + paymentId + '/receiveInCash',
+    method: 'POST',
+    headers,
+    body: JSON.stringify(corpo),
+  })
+  console.log(
+    '[manutencao] baixa em dinheiro',
+    paymentId,
+    r1.statusCode,
+    JSON.stringify(r1.json || {}).slice(0, 300),
+  )
+  if (r1.statusCode !== 200)
+    return e.badRequestError(
+      'Asaas receiveInCash: ' + String(r1.statusCode) + ' ' + JSON.stringify(r1.json).slice(0, 250),
+    )
+
+  // 3) espelha no registro local (status + data + forma)
+  try {
+    rec.set('status', 'pago')
+    rec.set('data_pagamento', corpo.paymentDate)
+    rec.set('asaas_baixa_dinheiro', true)
+    rec.set('asaas_baixa_em', new Date().toISOString())
+    $app.save(rec)
+  } catch (err) {
+    console.warn('[manutencao] nao consegui gravar a baixa no registro local', err)
+  }
+
+  return e.json(200, {
+    ok: true,
+    jaEstava: false,
+    statusAnterior: atual,
+    status: String(r1.json.status || ''),
+    paymentDate: corpo.paymentDate,
+    valor: valor,
   })
 })
