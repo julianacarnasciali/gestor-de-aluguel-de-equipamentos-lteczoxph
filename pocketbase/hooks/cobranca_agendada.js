@@ -43,10 +43,13 @@ cronAdd('cobranca_agendada', '*/5 * * * *', () => {
   }
 
   // ---------- chama a geração para o que venceu ----------
+  // IMPORTANTE: a URL tem de ser a INTERNA (.shrd00.internal). O host público
+  // gosk.app devolve 405 em qualquer POST — foi o que travou a fila na 1ª
+  // versão (02/11): status ficava "aguardando" para sempre, sem erro visível.
   const token = $secrets.get('MAESTRO_TOKEN') || ''
-  const appUrl = String($secrets.get('APP_URL') || '').replace(/\/+$/, '')
-  if (!token || !appUrl) {
-    console.warn('[cobranca] sem MAESTRO_TOKEN/APP_URL — fila nao processada')
+  const appUrl = 'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev'
+  if (!token) {
+    console.warn('[cobranca] sem MAESTRO_TOKEN — fila nao processada')
     return
   }
 
@@ -84,7 +87,15 @@ cronAdd('cobranca_agendada', '*/5 * * * *', () => {
           timeout: 60,
         })
         if (r.statusCode !== 200) {
-          console.warn('[cobranca] falha ao gerar', colecao, rec.id, r.statusCode)
+          // loga o corpo: sem isso, um 404/405 fica invisível e a fila parece
+          // só "parada" (foi o que aconteceu em 02/11)
+          console.warn(
+            '[cobranca] falha ao gerar',
+            colecao,
+            rec.id,
+            r.statusCode,
+            String(r.body || '').slice(0, 200),
+          )
           try {
             const t = Number(rec.get('tentativas_cobranca') || 0) + 1
             rec.set('tentativas_cobranca', t)
