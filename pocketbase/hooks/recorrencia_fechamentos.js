@@ -36,11 +36,16 @@ cronAdd('recorrencia_fechamentos', '0 6 1 * *', () => {
       if (compNum < iniNum || compNum > fimNum) continue
 
       // já existe fechamento desta competência?
-      const existentes = $app.countRecordsByFilter(
+      // NÃO existe $app.countRecordsByFilter neste runtime (era o bug que fazia o
+      // cron falhar em TODOS os contratos e não criar fechamento nenhum).
+      const existentes = $app.findRecordsByFilter(
         'fechamentos',
         "contrato = '" + k.id + "' && competencia = '" + competencia + "'",
+        '-created',
+        1,
+        0,
       )
-      if (existentes > 0) continue
+      if (existentes.length > 0) continue
 
       const mensalidade = Number(k.getFloat('mensalidade') || 0)
       const disp = Number(k.getFloat('vlr_dispositivos') || 0)
