@@ -446,6 +446,115 @@ routerAdd('POST', '/backend/v1/manutencao/asaas-telefone', (e) => {
   })
 })
 
+// Cria no Asaas um cliente SEPARADO para uma empresa que hoje compartilha
+// cadastro com outra (mesmo CNPJ, contratos diferentes).
+//
+// Caso concreto (02/11): MID HOME e MID WORK são dois contratos do mesmo
+// CONDOMINIO MID CURITIBA (CNPJ 20892181000115). Como o hook de boleto procura
+// cliente por cpfCnpj, os dois caíram no MESMO cliente do Asaas, cadastrado
+// como "MID WORK". Efeito: o boleto de R$ 188,60 do MID HOME aparece com o nome
+// MID WORK no painel, e as duas cobranças vão para o e-mail da MID WORK.
+//
+//   POST /backend/v1/manutencao/asaas-customer-separar { "empresaId": "e..." }
+routerAdd('POST', '/backend/v1/manutencao/asaas-customer-separar', (e) => {
+  const token = $secrets.get('MAESTRO_TOKEN') || ''
+  const got = e.request.header.get('x-maestro-token') || ''
+  if (!token || got !== token) return e.unauthorizedError('token invalido')
+
+  let body = null
+  try {
+    body = e.requestInfo().body
+  } catch (_) {}
+  const empresaId = String((body && body.empresaId) || '')
+  if (!empresaId) return e.badRequestError('empresaId obrigatorio')
+
+  let empresa = null
+  try {
+    empresa = $app.findRecordById('empresas', empresaId)
+  } catch (_) {}
+  if (!empresa) return e.badRequestError('empresa nao encontrada')
+
+  const apiKey = $secrets.get('ASAAS_API_KEY')
+  const base = $secrets.get('ASAAS_BASE_URL') || 'https://api.asaas.com/v3'
+  const headers = { access_token: apiKey, 'Content-Type': 'application/json' }
+
+  const doc = String(empresa.getString('cnpj_cpf') || '').replace(/\D/g, '')
+  const email = String(empresa.getString('email') || empresa.getString('responsavel_email') || '')
+  const enderecoTxt = String(empresa.getString('endereco') || '')
+  const fone = String(empresa.getString('telefone') || '').replace(/\D/g, '')
+
+  const corpo = {
+    name: empresa.getString('nome'),
+    externalReference: empresaId,
+    // sem isso o Asaas reaproveita/atrela o cliente existente do mesmo CNPJ
+    cpfCnpj: doc,
+  }
+  if (email) corpo.email = email
+  if (fone.length === 11) corpo.mobilePhone = fone
+  if (fone.length === 10) corpo.phone = fone
+
+  const partes = enderecoTxt
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  let rua = '',
+    numero = '',
+    bairro = '',
+    cidUf = '',
+    cep = ''
+  if (partes.length >= 5) {
+    rua = partes[0]
+    numero = partes[1]
+    bairro = partes[2]
+    cidUf = partes[3]
+    cep = partes[4]
+  } else if (partes.length === 4) {
+    rua = partes[0]
+    numero = partes[1]
+    cidUf = partes[2]
+    cep = partes[3]
+  }
+  if (rua) corpo.address = rua
+  if (numero) corpo.addressNumber = numero
+  if (bairro) corpo.province = bairro
+  const cidadeUf = cidUf.split('-').map((s) => s.trim())
+  if (cidadeUf[0]) corpo.cityName = cidadeUf[0]
+  if (cidadeUf[1]) corpo.state = cidadeUf[1]
+  const cepLimpo = cep.replace(/\D/g, '')
+  if (cepLimpo.length === 8) corpo.postalCode = cepLimpo
+
+  const r1 = $http.send({
+    url: base + '/customers',
+    method: 'POST',
+    headers,
+    body: JSON.stringify(corpo),
+  })
+  console.log(
+    '[manutencao] separar customer',
+    empresaId,
+    r1.statusCode,
+    JSON.stringify(r1.json || {}).slice(0, 300),
+  )
+  if (r1.statusCode !== 200)
+    return e.badRequestError(
+      'Asaas: ' + String(r1.statusCode) + ' ' + JSON.stringify(r1.json).slice(0, 300),
+    )
+
+  const novoId = r1.json.id || ''
+  const anterior = String(empresa.getString('asaas_customer_id') || '')
+  empresa.set('asaas_customer_id', novoId)
+  $app.save(empresa)
+
+  return e.json(200, {
+    ok: true,
+    empresa: empresa.getString('nome'),
+    customerAnterior: anterior,
+    customerNovo: novoId,
+    nome: r1.json.name,
+    email: r1.json.email,
+  })
+})
+
 // Consulta um pagamento no Asaas (para conferência — não altera nada).
 //   POST /backend/v1/manutencao/asaas-pagamento { "paymentId": "pay_..." }
 routerAdd('POST', '/backend/v1/manutencao/asaas-pagamento', (e) => {
