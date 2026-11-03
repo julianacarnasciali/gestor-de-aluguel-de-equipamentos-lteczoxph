@@ -42,6 +42,10 @@ export interface Contrato {
   vlr_servicos: number
   tipo_cobranca: 'leitura' | 'media'
   paginas_media: number
+  // cobrança recorrente fixa: não tem contador, então não gera nem mostra
+  // leitura mensal (pedido 03/11). A mensalidade sai automática todo dia 1º.
+  sem_leitura?: boolean
+  recorrente?: boolean
   tipo_excedente: 'total' | 'por_maquina'
   dia_leitura: number
   dia_vencimento: number
@@ -122,7 +126,9 @@ export const getEquipamentos = () =>
   pb.collection('equipamentos').getFullList<Equipamento>({
     sort: 'patrimonio',
     filter: 'tipo = "impressora" && ativo = true',
-    expand: 'empresa',
+    // contrato vem junto para a tela de Leituras poder pular os contratos
+    // recorrentes (sem contador) — pedido da Juliana, 03/11
+    expand: 'empresa,contrato',
   })
 
 // ---------- Leituras ----------

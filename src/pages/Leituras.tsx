@@ -230,6 +230,12 @@ export default function Leituras() {
   const grupos = useMemo(() => {
     const mapa = new Map<string, { empresa: string; maquinas: Equipamento[] }>()
     for (const eq of maquinas) {
+      // Contrato de cobrança recorrente NÃO tem contador: a mensalidade sai
+      // fixa todo dia 1º e não existe leitura a lançar. Esconder aqui evita
+      // alguém digitar "1.000" (a franquia) todo mês e sujar o histórico —
+      // foi o que aconteceu com Hidrofit, AMR, MID HOME/WORK, WMB, Olímpica e
+      // Copec (pedido da Juliana, 03/11).
+      if ((eq.expand?.contrato as { sem_leitura?: boolean } | undefined)?.sem_leitura) continue
       const nome = eq.expand?.empresa?.nome ?? '(sem empresa)'
       const alvo = busca.toLowerCase()
       if (
