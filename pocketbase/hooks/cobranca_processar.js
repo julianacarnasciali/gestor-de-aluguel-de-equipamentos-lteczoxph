@@ -17,6 +17,10 @@
 //    (nunca "gerada" — evita boleto duplicado).
 //  - Reivindica gravando "gerando" ANTES de falar com o Asaas.
 //  - Sem forcar=true, respeita cobranca_processar_em (a janela).
+//  - IDEMPOTENTE NO BOLETO (04/11): se o registro já tem asaas_payment_id de uma
+//    tentativa anterior, REAPROVEITA em vez de criar outro. Sem isso, uma falha
+//    depois do boleto (ex.: relatório) e uma nova tentativa gerariam DUAS
+//    cobranças para o mesmo cliente no Asaas.
 //
 // RELATÓRIO OBRIGATÓRIO (04/11, pedido da Juliana): "cada vez que gerar um
 // boleto, tem que gerar o relatório". Todo fechamento com boleto ganha o PDF
@@ -174,7 +178,7 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
     return falhar('erro customer: ' + String(err))
   }
 
-  // 2) boleto
+  // 2) boleto — REAPROVEITA se uma tentativa anterior já criou
   const venc = String(
     rec.getString('data_vencimento') ||
       rec.getString('data_emissao') ||
@@ -185,37 +189,41 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
     ? 'Locação de equipamentos — competência ' + rec.getString('competencia')
     : String(rec.getString('descricao') || 'Serviço avulso — LCCA Tecnologia').slice(0, 400)
 
-  let paymentId = ''
-  try {
-    const r3 = $http.send({
-      url: base + '/payments',
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        customer: customerId,
-        billingType: 'BOLETO',
-        value: total,
-        dueDate: venc || new Date().toISOString().slice(0, 10),
-        description: descricao,
-        externalReference: rec.id,
-      }),
-    })
-    if (r3.statusCode !== 200)
-      return falhar('payment ' + r3.statusCode + ': ' + JSON.stringify(r3.json).slice(0, 250))
-    paymentId = r3.json.id || ''
-    rec.set('asaas_customer_id', customerId)
-    rec.set('asaas_payment_id', paymentId)
-    rec.set('asaas_boleto_url', r3.json.bankSlipUrl || '')
-    rec.set('asaas_linha_digitavel', r3.json.identificationField || '')
-    $app.save(rec)
-  } catch (err) {
-    return falhar('erro payment: ' + String(err))
+  let paymentId = String(rec.getString('asaas_payment_id') || '')
+  if (paymentId) {
+    console.log('[cobranca/processar] reaproveitando boleto existente', paymentId)
+  } else {
+    try {
+      const r3 = $http.send({
+        url: base + '/payments',
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          customer: customerId,
+          billingType: 'BOLETO',
+          value: total,
+          dueDate: venc || new Date().toISOString().slice(0, 10),
+          description: descricao,
+          externalReference: rec.id,
+        }),
+      })
+      if (r3.statusCode !== 200)
+        return falhar('payment ' + r3.statusCode + ': ' + JSON.stringify(r3.json).slice(0, 250))
+      paymentId = r3.json.id || ''
+      rec.set('asaas_customer_id', customerId)
+      rec.set('asaas_payment_id', paymentId)
+      rec.set('asaas_boleto_url', r3.json.bankSlipUrl || '')
+      rec.set('asaas_linha_digitavel', r3.json.identificationField || '')
+      $app.save(rec)
+    } catch (err) {
+      return falhar('erro payment: ' + String(err))
+    }
   }
 
   // 2b) RELATÓRIO OBRIGATÓRIO — todo boleto de fechamento nasce com o PDF
   //     gravado no registro. Vale para quem emite e para quem NÃO emite nota.
-  //     Se falhar, a cobrança fica em "erro" (nada de boleto órfão sem
-  //     relatório) e o motivo aparece na tela.
+  //     Se falhar, a cobrança fica em "erro" (nada de e-mail sem relatório) e o
+  //     motivo aparece na tela. O boleto já criado é reaproveitado na retentativa.
   let relatorioOk = false
   if (ehFechamento) {
     try {
@@ -247,10 +255,10 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
     }
     if (!relatorioOk) {
       return falhar(
-        'Boleto criado (' +
+        'Boleto ' +
           paymentId +
-          '), mas o RELATORIO nao pode ser gerado. O e-mail nao sera enviado. ' +
-          'Corrija e use "Emitir agora" para regerar.',
+          ' criado, mas o RELATORIO nao pode ser gerado. O e-mail nao sera enviado. ' +
+          'Corrija e use "Emitir agora" (o boleto existente e reaproveitado, nao duplica).',
       )
     }
   }
