@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  getFechamentosAll,
-  getServicos,
-  pbExport as pb,
-  brl,
-  type Fechamento,
-} from '@/services/gestor'
+import { getFechamentosAll, getServicos, brl, type Fechamento } from '@/services/gestor'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ReemitirNF } from '@/components/ReemitirNF'
+import pbClient from '@/lib/pocketbase/client'
+
+// Linha da lista de mensalidades: o fechamento + o nome da empresa já resolvido.
+type Linha = Fechamento & { empresaNome: string }
 
 interface ServicoLinha {
   id: string
@@ -45,6 +43,27 @@ const diasAtraso = (venc: string) => {
 
 const dataBR = (iso: string) => (iso || '').slice(0, 10).split('-').reverse().join('/')
 
+// RELATÓRIO DO FECHAMENTO (04/11/2026)
+// Antes só existia "Ver PDF" na tela Fechamento mensal, e ele remontava o PDF no
+// navegador. O Financeiro não tinha como abrir o relatório — foi o que a Juliana
+// não achou ao precisar da 2ª via da Jandira Reserva.
+// Agora o PDF vive no campo `pdf` do próprio fechamento (gerado no servidor,
+// igual para todo mundo) e o botão abre o arquivo. Se ainda não existir, cai na
+// rota que gera na hora.
+const urlRelatorio = (rec: { id: string; pdf?: string }) => {
+  const base = String(pbClient.baseUrl || '')
+  if (rec.pdf) {
+    return base + '/api/files/fechamentos/' + rec.id + '/' + encodeURIComponent(rec.pdf)
+  }
+  return (
+    base +
+    '/backend/v1/fechamento/relatorio?id=' +
+    encodeURIComponent(rec.id) +
+    '&t=' +
+    encodeURIComponent(pbClient.authStore.token || '')
+  )
+}
+
 export default function Financeiro() {
   const [linhas, setLinhas] = useState<Linha[]>([])
   const [servicos, setServicos] = useState<ServicoLinha[]>([])
@@ -58,7 +77,14 @@ export default function Financeiro() {
     setCarregando(true)
     Promise.all([getFechamentosAll(), getServicos()])
       .then(([fechs, servs]) => {
-        setLinhas(fechs)
+        setLinhas(
+          fechs.map((f) => ({
+            ...f,
+            empresaNome:
+              (f as unknown as { expand?: { empresa?: { nome?: string } } }).expand?.empresa
+                ?.nome ?? String(f.empresa ?? ''),
+          })),
+        )
         setServicos(
           servs.map((s) => {
             const r = s as Record<string, unknown>
@@ -89,24 +115,26 @@ export default function Financeiro() {
   }, [])
 
   const darBaixa = async (id: string) => {
-    await pb.collection('fechamentos').update(id, { status: 'pago', data_pagamento: baixaData })
+    await pbClient
+      .collection('fechamentos')
+      .update(id, { status: 'pago', data_pagamento: baixaData })
     setBaixaId(null)
     carregar()
   }
 
   const desfazer = async (id: string) => {
-    await pb.collection('fechamentos').update(id, { status: 'emitido', data_pagamento: '' })
+    await pbClient.collection('fechamentos').update(id, { status: 'emitido', data_pagamento: '' })
     carregar()
   }
 
   const darBaixaServico = async (id: string) => {
-    await pb.collection('servicos').update(id, { status: 'pago', data_pagamento: baixaData })
+    await pbClient.collection('servicos').update(id, { status: 'pago', data_pagamento: baixaData })
     setBaixaId(null)
     carregar()
   }
 
   const desfazerServico = async (id: string) => {
-    await pb.collection('servicos').update(id, { status: 'emitido', data_pagamento: '' })
+    await pbClient.collection('servicos').update(id, { status: 'emitido', data_pagamento: '' })
     carregar()
   }
 
@@ -120,15 +148,16 @@ export default function Financeiro() {
     )
     if (!ok) return
     try {
-      const r = (await pb.send('/backend/v1/cobranca/processar', {
+      const r = (await pbClient.send('/backend/v1/cobranca/processar', {
         method: 'POST',
         body: { colecao, id, forcar: true },
-      })) as { paymentId?: string; invoiceStatus?: string }
+      })) as { paymentId?: string; invoiceStatus?: string; relatorio?: boolean }
       window.alert(
         r?.paymentId
           ? 'Cobrança emitida.\n\nBoleto: ' +
               r.paymentId +
-              (r.invoiceStatus ? '\nNota fiscal: ' + r.invoiceStatus : '\nSem nota fiscal.')
+              (r.invoiceStatus ? '\nNota fiscal: ' + r.invoiceStatus : '\nSem nota fiscal.') +
+              (r.relatorio === false ? '\n\nATENÇÃO: o relatório não pôde ser gerado.' : '')
           : 'Cobrança processada.',
       )
       carregar()
@@ -152,7 +181,7 @@ export default function Financeiro() {
     )
     if (!ok) return
     try {
-      await pb.send('/backend/v1/cobranca/cancelar', {
+      await pbClient.send('/backend/v1/cobranca/cancelar', {
         method: 'POST',
         body: { colecao, id },
       })
@@ -167,20 +196,9 @@ export default function Financeiro() {
     }
   }
 
-  const linhasComNome = useMemo(
-    () =>
-      linhas.map((l) => ({
-        ...l,
-        empresaNome:
-          (l as unknown as { expand?: { empresa?: { nome?: string } } }).expand?.empresa?.nome ??
-          l.empresa,
-      })),
-    [linhas],
-  )
-
   const visiveis = useMemo(() => {
     const alvo = busca.toLowerCase()
-    return linhasComNome
+    return linhas
       .filter((l) => {
         const pago = l.status === 'pago'
         if (filtro === 'pagos') return pago
@@ -201,7 +219,7 @@ export default function Financeiro() {
         if (!pa) return diasAtraso(b.data_vencimento) - diasAtraso(a.data_vencimento)
         return (b.competencia || '').localeCompare(a.competencia || '')
       })
-  }, [linhasComNome, filtro, busca])
+  }, [linhas, filtro, busca])
 
   const servicosVisiveis = useMemo(() => {
     const alvo = busca.toLowerCase()
@@ -232,7 +250,7 @@ export default function Financeiro() {
     let aReceber = 0
     let atrasado = 0
     let atrasados = 0
-    for (const l of linhasComNome) {
+    for (const l of linhas) {
       const v = Number(l.valor_final || l.total || 0)
       if (l.status === 'pago') recebido += v
       else {
@@ -249,7 +267,7 @@ export default function Financeiro() {
       .reduce((a, s) => a + s.valor, 0)
     const servAberto = servicos.filter((s) => s.status !== 'pago').reduce((a, s) => a + s.valor, 0)
     return { recebido, aReceber, atrasado, atrasados, servRecebido, servAberto }
-  }, [linhasComNome, servicos])
+  }, [linhas, servicos])
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -324,7 +342,6 @@ export default function Financeiro() {
                 {visiveis.map((l) => {
                   const pago = l.status === 'pago'
                   const atraso = pago ? 0 : diasAtraso(l.data_vencimento)
-                  const rec = l as unknown as Record<string, unknown>
                   return (
                     <div key={l.id} className="flex items-center gap-4 py-3 flex-wrap">
                       <div className="flex-1 min-w-48">
@@ -354,15 +371,30 @@ export default function Financeiro() {
                       ) : (
                         <Badge variant="secondary">Em aberto</Badge>
                       )}
+                      {/* RELATÓRIO — sempre disponível (04/11). Independe de nota fiscal. */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-slate-400 text-slate-700 hover:bg-slate-50"
+                        title="Abre o relatório deste fechamento (o mesmo que vai anexado no e-mail)."
+                        onClick={() => window.open(urlRelatorio(l), '_blank')}
+                      >
+                        Relatório
+                      </Button>
+                      {(l.cobranca_erro || '') !== '' && (
+                        <span className="text-xs text-red-600 max-w-56" title={l.cobranca_erro}>
+                          ⚠ {l.cobranca_erro.slice(0, 60)}
+                        </span>
+                      )}
                       {/* NF: link do PDF quando autorizada, fila quando agendada, emitir só se não existe */}
-                      {String(rec.asaas_invoice_url ?? '') ? (
+                      {l.asaas_invoice_url ? (
                         <button
                           className="text-xs text-indigo-700 underline"
-                          onClick={() => window.open(String(rec.asaas_invoice_url), '_blank')}
+                          onClick={() => window.open(l.asaas_invoice_url, '_blank')}
                         >
                           NF
                         </button>
-                      ) : String(rec.asaas_invoice_id ?? '') ? (
+                      ) : l.asaas_invoice_id ? (
                         <Badge variant="secondary" className="animate-pulse">
                           NF na fila…
                         </Badge>
@@ -391,8 +423,7 @@ export default function Financeiro() {
                           </div>
                         ) : (
                           <>
-                            {(l as unknown as { cobranca_status?: string }).cobranca_status ===
-                              'aguardando' && (
+                            {l.cobranca_status === 'aguardando' && (
                               <>
                                 <Button
                                   size="sm"

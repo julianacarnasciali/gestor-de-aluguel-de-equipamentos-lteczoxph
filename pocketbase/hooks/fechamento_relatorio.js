@@ -2,24 +2,25 @@
 //
 // Por que existe: até 04/11 o e-mail de fechamento saía SEM o relatório. O PDF
 // só era gerado no navegador (src/lib/pdf-fechamento.ts, botão "Ver PDF"), então
-// o servidor não tinha como anexá-lo. O cliente recebia o link do boleto e nada
-// mais — foi a reclamação da Jandira Reserva.
+// o servidor não tinha como anexá-lo. O cliente recebia só o link do boleto —
+// foi a reclamação da Jandira Reserva.
 //
 // jsPDF não instala no JSVM (o pnpm barra o build script do core-js), então o
 // PDF é montado aqui na mão, em PDF 1.4 puro, com as fontes padrão Helvetica
 // (não precisam ser embutidas). Mesmo layout do gerador do navegador.
 //
 // ROTA
-//   GET /backend/v1/fechamento/relatorio?id=<fechamento>&salvar=1&t=<token>
-//     Devolve o PDF (application/pdf). Autentica por sessão OU x-maestro-token/
-//     ?t= (para o cron e para o e-mail).
-//     salvar=1 grava o arquivo no campo `pdf` do fechamento.
+//   GET /backend/v1/fechamento/relatorio?id=<fechamento>
+//     &salvar=1    grava o PDF no campo `pdf` do fechamento
+//     &formato=json  devolve { ok, base64, nome, bytes } em vez do binário
+//                    (é assim que o e-mail pega o anexo)
+//   Autentica por sessão OU x-maestro-token / ?t= (cron e e-mail usam o token).
 //
-// REGRA DE NEGÓCIO (04/11): todo fechamento que gera boleto gera relatório, e
-// nenhum e-mail sai sem o PDF anexado.
+// REGRA DE NEGÓCIO (04/11, pedido dela): todo fechamento que gera boleto gera
+// relatório, e nenhum e-mail de fechamento sai sem o PDF anexado.
 //
 // TUDO dentro do callback: o JSVM isola escopos e funções de topo não são
-// compartilhadas com os callbacks (lição registrada em licoes-codigo-e-demo.md).
+// compartilhadas com os callbacks.
 routerAdd('GET', '/backend/v1/fechamento/relatorio', (e) => {
   // ---------- helpers ----------
   const MAPA = {
@@ -49,6 +50,20 @@ routerAdd('GET', '/backend/v1/fechamento/relatorio', (e) => {
       .replace(/\(/g, '\\(')
       .replace(/\)/g, '\\)')
       .replace(/[\r\n\t]/g, ' ')
+  const b64 = (bytes) => {
+    const T = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    let o = ''
+    for (let i = 0; i < bytes.length; i += 3) {
+      const b0 = bytes[i]
+      const b1 = i + 1 < bytes.length ? bytes[i + 1] : -1
+      const b2 = i + 2 < bytes.length ? bytes[i + 2] : -1
+      o += T[b0 >> 2]
+      o += T[((b0 & 3) << 4) | ((b1 < 0 ? 0 : b1) >> 4)]
+      o += b1 < 0 ? '=' : T[((b1 & 15) << 2) | ((b2 < 0 ? 0 : b2) >> 6)]
+      o += b2 < 0 ? '=' : T[b2 & 63]
+    }
+    return o
+  }
 
   // ---------- autenticação ----------
   const q = e.request.url.query()
@@ -370,22 +385,23 @@ routerAdd('GET', '/backend/v1/fechamento/relatorio', (e) => {
   for (let i = 1; i <= 6; i++) pushS(('0000000000' + offsets[i]).slice(-10) + ' 00000 n \n')
   pushS('trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n')
 
+  const nomeArquivo =
+    'fechamento-' +
+    String(emp.nome || 'cliente')
+      .replace(/[^A-Za-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() +
+    '-' +
+    String(competencia).replace('/', '-') +
+    '.pdf'
+
   // ---------- grava no registro, se pedido ----------
   let salvou = false
   if (String(q.get('salvar') || '') === '1') {
     try {
-      const nome =
-        'fechamento-' +
-        String(emp.nome || 'cliente')
-          .replace(/[^A-Za-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '')
-          .toLowerCase() +
-        '-' +
-        String(competencia).replace('/', '-') +
-        '.pdf'
       const u8 = new Uint8Array(partes.length)
       for (let i = 0; i < partes.length; i++) u8[i] = partes[i]
-      fech.set('pdf', $filesystem.fileFromBytes(u8, nome))
+      fech.set('pdf', $filesystem.fileFromBytes(u8, nomeArquivo))
       $app.save(fech)
       salvou = true
       console.log('[relatorio] PDF gravado', fech.id, competencia, partes.length, 'bytes')
@@ -394,16 +410,24 @@ routerAdd('GET', '/backend/v1/fechamento/relatorio', (e) => {
     }
   }
 
+  // ---------- resposta ----------
+  if (String(q.get('formato') || '') === 'json') {
+    return e.json(200, {
+      ok: true,
+      id: fech.id,
+      competencia: competencia,
+      nome: nomeArquivo,
+      bytes: partes.length,
+      salvo: salvou,
+      base64: b64(partes),
+    })
+  }
+
   const u8out = new Uint8Array(partes.length)
   for (let i = 0; i < partes.length; i++) u8out[i] = partes[i]
   const resp = e.response
   resp.header().set('Content-Type', 'application/pdf')
-  resp
-    .header()
-    .set(
-      'Content-Disposition',
-      'inline; filename="fechamento-' + String(competencia).replace('/', '-') + '.pdf"',
-    )
+  resp.header().set('Content-Disposition', 'inline; filename="' + nomeArquivo + '"')
   resp.header().set('X-Relatorio-Salvo', salvou ? '1' : '0')
   resp.header().set('X-Relatorio-Bytes', String(partes.length))
   return resp.write(u8out)

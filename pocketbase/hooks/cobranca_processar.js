@@ -1,4 +1,4 @@
-// GERAÇÃO da cobrança (boleto + Pix + NFS-e) — em UM lugar só.
+// GERAÇÃO da cobrança (boleto + relatório + Pix + NFS-e) — em UM lugar só.
 //
 // Por que virou rota: o JSVM não compartilha funções entre arquivos (cada hook é
 // isolado). Se eu copiasse a geração para o cron e para o botão, as duas cópias
@@ -17,6 +17,11 @@
 //    (nunca "gerada" — evita boleto duplicado).
 //  - Reivindica gravando "gerando" ANTES de falar com o Asaas.
 //  - Sem forcar=true, respeita cobranca_processar_em (a janela).
+//
+// RELATÓRIO OBRIGATÓRIO (04/11, pedido da Juliana): "cada vez que gerar um
+// boleto, tem que gerar o relatório". Todo fechamento com boleto ganha o PDF
+// gravado no campo `pdf` — inclusive os que NÃO emitem nota fiscal. O e-mail só
+// sai com esse PDF anexado (ver email_fechamento.js).
 routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
@@ -207,6 +212,49 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
     return falhar('erro payment: ' + String(err))
   }
 
+  // 2b) RELATÓRIO OBRIGATÓRIO — todo boleto de fechamento nasce com o PDF
+  //     gravado no registro. Vale para quem emite e para quem NÃO emite nota.
+  //     Se falhar, a cobrança fica em "erro" (nada de boleto órfão sem
+  //     relatório) e o motivo aparece na tela.
+  let relatorioOk = false
+  if (ehFechamento) {
+    try {
+      const appUrl =
+        $secrets.get('APP_URL') ||
+        'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev'
+      const rRel = $http.send({
+        url:
+          appUrl +
+          '/backend/v1/fechamento/relatorio?id=' +
+          encodeURIComponent(rec.id) +
+          '&formato=json&salvar=1',
+        method: 'GET',
+        headers: { 'x-maestro-token': token },
+        timeout: 60,
+      })
+      if (rRel.statusCode === 200 && rRel.json && rRel.json.base64) {
+        relatorioOk = true
+        console.log('[cobranca/processar] relatorio gerado', rec.id, rRel.json.bytes, 'bytes')
+      } else {
+        console.warn(
+          '[cobranca/processar] relatorio falhou',
+          rRel.statusCode,
+          String(rRel.body || '').slice(0, 200),
+        )
+      }
+    } catch (err) {
+      console.warn('[cobranca/processar] erro relatorio', err)
+    }
+    if (!relatorioOk) {
+      return falhar(
+        'Boleto criado (' +
+          paymentId +
+          '), mas o RELATORIO nao pode ser gerado. O e-mail nao sera enviado. ' +
+          'Corrija e use "Emitir agora" para regerar.',
+      )
+    }
+  }
+
   // 3) Pix (só serviço avulso)
   if (!ehFechamento) {
     try {
@@ -286,6 +334,8 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
     paymentId,
     'NF:',
     invoiceId || '-',
+    'relatorio:',
+    relatorioOk ? 'sim' : 'nao',
     forcar ? '(imediato)' : '(fila)',
   )
   return e.json(200, {
@@ -294,6 +344,7 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
     boletoUrl: String(rec.getString('asaas_boleto_url') || ''),
     invoiceId: invoiceId,
     invoiceStatus: invoiceStatus,
+    relatorio: relatorioOk,
     valor: total,
     imediato: forcar,
   })

@@ -1,12 +1,27 @@
-// Hook: envia e-mail do fechamento ao cliente (cópia p/ Juliana+Luiz) quando
-// a NFS-e é autorizada — ou imediatamente se a empresa não emite nota.
-// Dispara no UPDATE do fechamento (status/asaas_invoice_* mudam via webhook).
+// Hook: envia o e-mail do fechamento ao cliente (cópia p/ Juliana+Luiz).
+//
+// HISTÓRICO
+//  - Antes de 04/11/2026 o e-mail levava SÓ o link do boleto: o PDF do relatório
+//    nunca era anexado (o gerador vivia apenas no navegador). O cliente recebia
+//    a cobrança sem saber o que estava pagando — foi a reclamação da Jandira
+//    Reserva, que abriu o e-mail em 28/10 e não achou o relatório.
+//
+// REGRA NOVA (04/11, pedido da Juliana): "Nenhum fechamento pode sair sem
+// relatório. Alguns não vão dar nota, mas relatório é obrigatório. Cada vez que
+// gerar um boleto, tem que gerar o relatório."
+//   → este hook SEMPRE anexa o PDF. Se o PDF não puder ser gerado, o e-mail
+//     NÃO sai (melhor não mandar do que mandar sem relatório) e o motivo fica
+//     gravado em `cobranca_erro` para aparecer na tela.
+//
+// QUANDO DISPARA: no UPDATE do fechamento, quando a cobrança já foi gerada
+// (`cobranca_status = "gerada"`) e o status vira "emitido". A janela de
+// segurança de 02/11 continua valendo: nada é gerado antes dela.
 onRecordAfterUpdateSuccess((e) => {
   try {
     const rec = e.record
     const status = rec.getString('status')
     // já enviado antes? não reenvia (checa ANTES de aceitar 'enviado')
-    if (rec.getString('status') === 'enviado') {
+    if (status === 'enviado') {
       e.next()
       return
     }
@@ -98,6 +113,51 @@ onRecordAfterUpdateSuccess((e) => {
     const boletoUrl = String(rec.getString('asaas_boleto_url') || '')
     const nfUrl = String(rec.getString('asaas_invoice_url') || '')
 
+    // ---------- RELATÓRIO (obrigatório desde 04/11) ----------
+    // Pede o PDF à rota interna. Ela monta o mesmo layout do "Ver PDF" da tela.
+    const token = $secrets.get('MAESTRO_TOKEN') || ''
+    const appUrl = 'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev'
+    let anexo = null
+    try {
+      const rRel = $http.send({
+        url:
+          appUrl +
+          '/backend/v1/fechamento/relatorio?id=' +
+          encodeURIComponent(rec.id) +
+          '&formato=json&salvar=1',
+        method: 'GET',
+        headers: { 'x-maestro-token': token },
+        timeout: 60,
+      })
+      if (rRel.statusCode === 200 && rRel.json && rRel.json.base64) {
+        anexo = {
+          name: String(rRel.json.nome || 'relatorio.pdf'),
+          content: String(rRel.json.base64),
+        }
+      } else {
+        console.warn(
+          '[email-fechamento] relatorio indisponivel',
+          rRel.statusCode,
+          String(rRel.body || '').slice(0, 200),
+        )
+      }
+    } catch (err) {
+      console.warn('[email-fechamento] erro ao pedir relatorio', err)
+    }
+
+    // SEM RELATÓRIO NÃO ENVIA. Fica visível na tela (cobranca_erro) para ela
+    // poder reenviar depois de corrigir. Nunca manda cobrança sem o relatório.
+    if (!anexo) {
+      rec.set(
+        'cobranca_erro',
+        'E-mail NAO enviado: falhou ao gerar o relatorio PDF. Corrija e reenvie.',
+      )
+      $app.save(rec)
+      console.warn('[email-fechamento] BLOQUEADO sem relatorio', rec.id, competencia)
+      e.next()
+      return
+    }
+
     const assunto = `Fechamento ${competencia} — ${empresa.getString('nome')} (${brl})`
     let corpo =
       '<p>Olá,</p>' +
@@ -109,9 +169,12 @@ onRecordAfterUpdateSuccess((e) => {
     if (nfUrl) {
       corpo += `<p><a href="${nfUrl}">🧾 Nota fiscal de serviço (PDF)</a></p>`
     }
+    // deixa explícito que o relatório está no anexo — foi a dúvida do cliente
+    corpo +=
+      '<p>O <strong>relatório completo</strong> (máquinas, leituras e páginas do mês) está ' +
+      '<strong>anexado</strong> a este e-mail.</p>'
     corpo +=
       '<p style="color:#64748b;font-size:12px">Qualquer dúvida, responda este e-mail ou fale conosco.</p>' +
-      // assinatura — LOGO LCCA TECH (aprovada 12/10) + contato do Luiz
       '<div style="margin-top:20px;font-family:Arial,Helvetica,sans-serif">' +
       '<div style="background:#0F2A43;color:#ffffff;padding:14px 16px;border-radius:8px 8px 0 0">' +
       '<img src="https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev/api/files/arquivos/ib0smsxri8sw6q2/full_branco_y8024354gz.png" alt="LCCA Tech" width="150" style="display:block;border:0" />' +
@@ -128,6 +191,7 @@ onRecordAfterUpdateSuccess((e) => {
       to: dests,
       subject: assunto,
       htmlContent: corpo,
+      attachment: [anexo],
     }
     if (copias.length > 0) payload.bcc = copias.map((m) => ({ email: m }))
 
@@ -143,14 +207,26 @@ onRecordAfterUpdateSuccess((e) => {
     })
     if (r.statusCode === 200 || r.statusCode === 201) {
       rec.set('status', 'enviado')
+      rec.set('email_enviado', true)
+      rec.set('cobranca_erro', '')
       $app.save(rec)
       console.log(
-        '[email-fechamento] enviado p/ empresa',
+        '[email-fechamento] enviado c/ relatorio p/',
         empresa.getString('nome'),
+        '| anexo:',
+        anexo.name,
         '| messageId:',
         r.json.messageId,
       )
     } else {
+      rec.set(
+        'cobranca_erro',
+        'Brevo recusou o e-mail (' +
+          r.statusCode +
+          '): ' +
+          JSON.stringify(r.json || {}).slice(0, 200),
+      )
+      $app.save(rec)
       console.warn('[email-fechamento] falhou', r.statusCode, JSON.stringify(r.json).slice(0, 300))
     }
   } catch (err) {
