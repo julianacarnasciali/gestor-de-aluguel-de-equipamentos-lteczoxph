@@ -12,17 +12,22 @@
 //   → este hook SEMPRE anexa o PDF. Se o PDF não puder ser gerado, o e-mail
 //     NÃO sai (melhor não mandar do que mandar sem relatório).
 //
-// CUIDADO COM LAÇO (bug de 04/11, corrigido aqui): este hook roda em
-// `onRecordAfterUpdateSuccess`. Qualquer `$app.save(rec)` dentro dele dispara o
-// hook OUTRA VEZ. Duas armadilhas que já morderam:
-//   1. salvar o registro quando o envio FALHA (status continua "emitido") →
-//      nova tentativa → falha → salva → ... laço infinito (aconteceu no 1º
-//      teste). Por isso, ao falhar, aqui só se registra no log: NADA é salvo.
-//   2. chamar a rota do relatório com `salvar=1` → a rota grava o PDF no
-//      fechamento → dispara este hook de novo. Por isso o e-mail pede o PDF
-//      SEM salvar (quem grava é cobranca_processar.js, antes de virar "gerada").
-// A única gravação permitida aqui é a de SUCESSO (status = "enviado"), que na
-// volta seguinte cai no primeiro `if` e encerra.
+// TRÊS ARMADILHAS QUE JÁ MORDERAM (04/11) — leia antes de mexer:
+//  1. LAÇO INFINITO. Este hook roda em `onRecordAfterUpdateSuccess`: qualquer
+//     `$app.save(rec)` aqui dentro dispara o hook OUTRA VEZ. Salvar quando o
+//     envio FALHA (status ainda "emitido") gera tentativa → falha → salva →
+//     tentativa... Na 1ª versão isso mandou 48 e-mails de teste em 14s. Por
+//     isso, ao falhar, aqui só se escreve no log: NADA é salvo.
+//     A única gravação permitida é a de SUCESSO (status = "enviado"), que na
+//     volta seguinte cai no primeiro `if` e encerra.
+//  2. HOST ERRADO. A rota do relatório tem de ser chamada no host INTERNO
+//     `.shrd00.internal.goskip.dev`. Pelo host público / APP_URL a resposta é
+//     200 com o HTML do frontend ("<!DOCTYPE html> template for the frontend
+//     react app") — o `statusCode` engana e o anexo vem vazio.
+//  3. GRAVAR O PDF AQUI. Chamar a rota com `salvar=1` faz a rota gravar o
+//     fechamento, o que dispara este hook de novo. O e-mail pede o PDF SEM
+//     salvar (formato=json); quem grava é cobranca_processar.js, antes de
+//     virar "gerada".
 onRecordAfterUpdateSuccess((e) => {
   try {
     const rec = e.record
@@ -42,9 +47,9 @@ onRecordAfterUpdateSuccess((e) => {
     // por engano (foi o caso da MID HOME) mandaria e-mail ao cliente.
     //
     // COMPATIBILIDADE COM O PASSADO: os fechamentos criados ANTES de 02/11 não
-    // têm cobranca_status (campo da migração 0049). Sem esta exceção eles nunca
-    // mais conseguiriam enviar e-mail — o "funcionava em outubro e parou" que a
-    // Juliana sentiu. Aceita vazio SÓ quando já existe boleto no registro.
+    // têm cobranca_status (campo da migração 0049) — com a checagem rígida eles
+    // nunca mais conseguiriam enviar e-mail ("funcionava em outubro e parou").
+    // Aceita vazio SÓ quando já existe boleto no registro.
     const cobStatus = String(rec.getString('cobranca_status') || '')
     const temBoleto = String(rec.getString('asaas_payment_id') || '') !== ''
     const podeEnviar = cobStatus === 'gerada' || (cobStatus === '' && temBoleto)
@@ -128,12 +133,10 @@ onRecordAfterUpdateSuccess((e) => {
     const nfUrl = String(rec.getString('asaas_invoice_url') || '')
 
     // ---------- RELATÓRIO (obrigatório desde 04/11) ----------
-    // Pede o PDF à rota interna em memória (formato=json). NÃO usa salvar=1:
-    // gravar o fechamento aqui dispararia este mesmo hook outra vez.
+    // HOST INTERNO fixo: pelo host público a resposta é 200 com o HTML do
+    // frontend. NÃO usa salvar=1 (gravaria o fechamento e reentraria no hook).
     const token = $secrets.get('MAESTRO_TOKEN') || ''
-    const appUrl =
-      $secrets.get('APP_URL') ||
-      'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev'
+    const appUrl = 'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev'
     let anexo = null
     try {
       const rRel = $http.send({
@@ -146,7 +149,9 @@ onRecordAfterUpdateSuccess((e) => {
         headers: { 'x-maestro-token': token },
         timeout: 60,
       })
-      if (rRel.statusCode === 200 && rRel.json && rRel.json.base64) {
+      const parecePdf =
+        rRel.json && typeof rRel.json.base64 === 'string' && rRel.json.base64.length > 1000
+      if (rRel.statusCode === 200 && parecePdf) {
         anexo = {
           name: String(rRel.json.nome || 'relatorio.pdf'),
           content: String(rRel.json.base64),
@@ -155,7 +160,10 @@ onRecordAfterUpdateSuccess((e) => {
         console.warn(
           '[email-fechamento] relatorio indisponivel',
           rRel.statusCode,
-          String(rRel.json ? JSON.stringify(rRel.json).slice(0, 160) : rRel.body).slice(0, 200),
+          'json?',
+          !!rRel.json,
+          'base64?',
+          rRel.json ? String(rRel.json.base64 || '').length : 0,
         )
       }
     } catch (err) {

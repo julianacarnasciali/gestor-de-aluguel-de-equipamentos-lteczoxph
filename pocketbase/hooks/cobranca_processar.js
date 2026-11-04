@@ -19,13 +19,16 @@
 //  - Sem forcar=true, respeita cobranca_processar_em (a janela).
 //  - IDEMPOTENTE NO BOLETO (04/11): se o registro já tem asaas_payment_id de uma
 //    tentativa anterior, REAPROVEITA em vez de criar outro. Sem isso, uma falha
-//    depois do boleto (ex.: relatório) e uma nova tentativa gerariam DUAS
-//    cobranças para o mesmo cliente no Asaas.
+//    depois do boleto (ex.: relatório) e a retentativa gerariam DUAS cobranças
+//    para o mesmo cliente no Asaas.
 //
 // RELATÓRIO OBRIGATÓRIO (04/11, pedido da Juliana): "cada vez que gerar um
 // boleto, tem que gerar o relatório". Todo fechamento com boleto ganha o PDF
-// gravado no campo `pdf` — inclusive os que NÃO emitem nota fiscal. O e-mail só
-// sai com esse PDF anexado (ver email_fechamento.js).
+// gravado no campo `pdf` — inclusive os que NÃO emitem nota fiscal.
+//
+// HOST INTERNO: a rota do relatório é chamada SEMPRE em `.shrd00.internal`.
+// Pelo host público a resposta é 200 com o HTML do frontend e o anexo vem
+// vazio — o `statusCode` engana (aconteceu em 04/11).
 routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
   const token = $secrets.get('MAESTRO_TOKEN') || ''
   const got = e.request.header.get('x-maestro-token') || ''
@@ -222,17 +225,12 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
 
   // 2b) RELATÓRIO OBRIGATÓRIO — todo boleto de fechamento nasce com o PDF
   //     gravado no registro. Vale para quem emite e para quem NÃO emite nota.
-  //     Se falhar, a cobrança fica em "erro" (nada de e-mail sem relatório) e o
-  //     motivo aparece na tela. O boleto já criado é reaproveitado na retentativa.
   let relatorioOk = false
   if (ehFechamento) {
     try {
-      const appUrl =
-        $secrets.get('APP_URL') ||
-        'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev'
       const rRel = $http.send({
         url:
-          appUrl +
+          'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev' +
           '/backend/v1/fechamento/relatorio?id=' +
           encodeURIComponent(rec.id) +
           '&formato=json&salvar=1',
@@ -244,11 +242,7 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
         relatorioOk = true
         console.log('[cobranca/processar] relatorio gerado', rec.id, rRel.json.bytes, 'bytes')
       } else {
-        console.warn(
-          '[cobranca/processar] relatorio falhou',
-          rRel.statusCode,
-          String(rRel.body || '').slice(0, 200),
-        )
+        console.warn('[cobranca/processar] relatorio falhou', rRel.statusCode)
       }
     } catch (err) {
       console.warn('[cobranca/processar] erro relatorio', err)
