@@ -10,12 +10,19 @@
 // relatório. Alguns não vão dar nota, mas relatório é obrigatório. Cada vez que
 // gerar um boleto, tem que gerar o relatório."
 //   → este hook SEMPRE anexa o PDF. Se o PDF não puder ser gerado, o e-mail
-//     NÃO sai (melhor não mandar do que mandar sem relatório) e o motivo fica
-//     gravado em `cobranca_erro` para aparecer na tela.
+//     NÃO sai (melhor não mandar do que mandar sem relatório).
 //
-// QUANDO DISPARA: no UPDATE do fechamento, quando a cobrança já foi gerada
-// (`cobranca_status = "gerada"`) e o status vira "emitido". A janela de
-// segurança de 02/11 continua valendo: nada é gerado antes dela.
+// CUIDADO COM LAÇO (bug de 04/11, corrigido aqui): este hook roda em
+// `onRecordAfterUpdateSuccess`. Qualquer `$app.save(rec)` dentro dele dispara o
+// hook OUTRA VEZ. Duas armadilhas que já morderam:
+//   1. salvar o registro quando o envio FALHA (status continua "emitido") →
+//      nova tentativa → falha → salva → ... laço infinito (aconteceu no 1º
+//      teste). Por isso, ao falhar, aqui só se registra no log: NADA é salvo.
+//   2. chamar a rota do relatório com `salvar=1` → a rota grava o PDF no
+//      fechamento → dispara este hook de novo. Por isso o e-mail pede o PDF
+//      SEM salvar (quem grava é cobranca_processar.js, antes de virar "gerada").
+// A única gravação permitida aqui é a de SUCESSO (status = "enviado"), que na
+// volta seguinte cai no primeiro `if` e encerra.
 onRecordAfterUpdateSuccess((e) => {
   try {
     const rec = e.record
@@ -33,8 +40,15 @@ onRecordAfterUpdateSuccess((e) => {
     // JANELA DE SEGURANÇA (02/11): só envia depois que a cobrança foi GERADA
     // pela fila. Antes disso o boleto/NF podem nem existir, e um status mexido
     // por engano (foi o caso da MID HOME) mandaria e-mail ao cliente.
+    //
+    // COMPATIBILIDADE COM O PASSADO: os fechamentos criados ANTES de 02/11 não
+    // têm cobranca_status (campo da migração 0049). Sem esta exceção eles nunca
+    // mais conseguiriam enviar e-mail — o "funcionava em outubro e parou" que a
+    // Juliana sentiu. Aceita vazio SÓ quando já existe boleto no registro.
     const cobStatus = String(rec.getString('cobranca_status') || '')
-    if (cobStatus !== 'gerada') {
+    const temBoleto = String(rec.getString('asaas_payment_id') || '') !== ''
+    const podeEnviar = cobStatus === 'gerada' || (cobStatus === '' && temBoleto)
+    if (!podeEnviar) {
       e.next()
       return
     }
@@ -114,9 +128,12 @@ onRecordAfterUpdateSuccess((e) => {
     const nfUrl = String(rec.getString('asaas_invoice_url') || '')
 
     // ---------- RELATÓRIO (obrigatório desde 04/11) ----------
-    // Pede o PDF à rota interna. Ela monta o mesmo layout do "Ver PDF" da tela.
+    // Pede o PDF à rota interna em memória (formato=json). NÃO usa salvar=1:
+    // gravar o fechamento aqui dispararia este mesmo hook outra vez.
     const token = $secrets.get('MAESTRO_TOKEN') || ''
-    const appUrl = 'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev'
+    const appUrl =
+      $secrets.get('APP_URL') ||
+      'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev'
     let anexo = null
     try {
       const rRel = $http.send({
@@ -124,7 +141,7 @@ onRecordAfterUpdateSuccess((e) => {
           appUrl +
           '/backend/v1/fechamento/relatorio?id=' +
           encodeURIComponent(rec.id) +
-          '&formato=json&salvar=1',
+          '&formato=json',
         method: 'GET',
         headers: { 'x-maestro-token': token },
         timeout: 60,
@@ -138,21 +155,16 @@ onRecordAfterUpdateSuccess((e) => {
         console.warn(
           '[email-fechamento] relatorio indisponivel',
           rRel.statusCode,
-          String(rRel.body || '').slice(0, 200),
+          String(rRel.json ? JSON.stringify(rRel.json).slice(0, 160) : rRel.body).slice(0, 200),
         )
       }
     } catch (err) {
       console.warn('[email-fechamento] erro ao pedir relatorio', err)
     }
 
-    // SEM RELATÓRIO NÃO ENVIA. Fica visível na tela (cobranca_erro) para ela
-    // poder reenviar depois de corrigir. Nunca manda cobrança sem o relatório.
+    // SEM RELATÓRIO NÃO ENVIA. E NÃO SALVA (salvar aqui = laço): só loga. O
+    // registro continua "emitido" e ela pode reenviar depois pela tela.
     if (!anexo) {
-      rec.set(
-        'cobranca_erro',
-        'E-mail NAO enviado: falhou ao gerar o relatorio PDF. Corrija e reenvie.',
-      )
-      $app.save(rec)
       console.warn('[email-fechamento] BLOQUEADO sem relatorio', rec.id, competencia)
       e.next()
       return
@@ -206,9 +218,8 @@ onRecordAfterUpdateSuccess((e) => {
       body: JSON.stringify(payload),
     })
     if (r.statusCode === 200 || r.statusCode === 201) {
+      // ÚNICA gravação permitida: na volta seguinte o primeiro `if` encerra.
       rec.set('status', 'enviado')
-      rec.set('email_enviado', true)
-      rec.set('cobranca_erro', '')
       $app.save(rec)
       console.log(
         '[email-fechamento] enviado c/ relatorio p/',
@@ -219,15 +230,11 @@ onRecordAfterUpdateSuccess((e) => {
         r.json.messageId,
       )
     } else {
-      rec.set(
-        'cobranca_erro',
-        'Brevo recusou o e-mail (' +
-          r.statusCode +
-          '): ' +
-          JSON.stringify(r.json || {}).slice(0, 200),
+      console.warn(
+        '[email-fechamento] Brevo recusou',
+        r.statusCode,
+        JSON.stringify(r.json || {}).slice(0, 250),
       )
-      $app.save(rec)
-      console.warn('[email-fechamento] falhou', r.statusCode, JSON.stringify(r.json).slice(0, 300))
     }
   } catch (err) {
     console.warn('[email-fechamento] erro geral', err)
