@@ -189,10 +189,15 @@ onRecordAfterUpdateSuccess((e) => {
     if (nfUrl) {
       corpo += `<p><a href="${nfUrl}">🧾 Nota fiscal de serviço (PDF)</a></p>`
     }
-    // deixa explícito que o relatório está no anexo — foi a dúvida do cliente
-    corpo +=
-      '<p>O <strong>relatório completo</strong> (máquinas, leituras e páginas do mês) está ' +
-      '<strong>anexado</strong> a este e-mail.</p>'
+    // deixa explícito que o relatório está no anexo — foi a dúvida do cliente.
+    // MODO CONTRATO (05/11): nesse tipo de cobrança não existe leitura nem
+    // páginas, então o texto não pode falar delas (pedido da Juliana).
+    const modoContrato = rec.getBool('cobranca_contrato') === true
+    corpo += modoContrato
+      ? '<p>O <strong>relatório</strong> com o valor mensal do contrato está ' +
+        '<strong>anexado</strong> a este e-mail.</p>'
+      : '<p>O <strong>relatório completo</strong> (máquinas, leituras e páginas do mês) está ' +
+        '<strong>anexado</strong> a este e-mail.</p>'
     corpo +=
       '<p style="color:#64748b;font-size:12px">Qualquer dúvida, responda este e-mail ou fale conosco.</p>' +
       '<div style="margin-top:20px;font-family:Arial,Helvetica,sans-serif">' +

@@ -225,6 +225,10 @@ routerAdd('GET', '/backend/v1/fechamento/relatorio', (e) => {
   )
 
   const ehFatura = String(fech.getString('tipo_documento')) === 'fatura'
+  // MODO CONTRATO (05/11/2026): cobrança mensal pelo valor do contrato. O PDF
+  // anexado ao e-mail do cliente não pode citar leitura nem páginas — nesse
+  // modo não existe contador. Fechamentos normais não mudam.
+  const somenteContrato = fech.getBool('cobranca_contrato') === true
   txt(
     40,
     106,
@@ -247,61 +251,84 @@ routerAdd('GET', '/backend/v1/fechamento/relatorio', (e) => {
 
   let notaLeitura = ''
   const dl = String(fech.getString('data_leitura') || '')
-  if (dl) {
+  if (!somenteContrato && dl) {
     notaLeitura = 'Leitura realizada em ' + dataBR(dl)
     const ref = String(fech.getString('leitura_referencia') || '')
     if (ref) notaLeitura += ' — apurada pelo contador e referente ao uso de ' + ref
   }
   if (notaLeitura) txt(40, 185, 7.8, false, CINZA, notaLeitura)
 
+  // tabela de leituras — NÃO existe no modo contrato (não há máquina/leitura)
   let y = notaLeitura ? 198 : 186
-  ret(40, y, W - 80, 18, NAVY)
-  const cols = [40, 148, 232, 312, 396, 462]
-  const heads = ['Máquina', 'Setor', 'Leitura ant.', 'Leitura atual', 'Páginas', 'Excedente']
-  for (let i = 0; i < heads.length; i++) txt(cols[i] + 5, y + 12.5, 7.8, true, BRANCO, heads[i])
+  if (!somenteContrato) {
+    ret(40, y, W - 80, 18, NAVY)
+    const cols = [40, 148, 232, 312, 396, 462]
+    const heads = ['Máquina', 'Setor', 'Leitura ant.', 'Leitura atual', 'Páginas', 'Excedente']
+    for (let i = 0; i < heads.length; i++) txt(cols[i] + 5, y + 12.5, 7.8, true, BRANCO, heads[i])
 
-  y += 18
-  for (let idx = 0; idx < maquinas.length; idx++) {
-    const m = maquinas[idx]
-    if (idx % 2 === 1) ret(40, y, W - 80, 17, ZEBRA)
-    txt(cols[0] + 5, y + 12, 7.8, false, ESCURO, String(m.patrimonio || '-').slice(0, 20))
-    txt(cols[1] + 5, y + 12, 7.8, false, ESCURO, String(m.setor || '-').slice(0, 16))
-    txt(cols[2] + 5, y + 12, 7.8, false, ESCURO, String(m.leitura_anterior))
-    txt(cols[3] + 5, y + 12, 7.8, false, ESCURO, String(m.leitura_atual))
-    txt(cols[4] + 5, y + 12, 7.8, false, ESCURO, String(m.paginas_mes))
-    txt(cols[5] + 5, y + 12, 7.8, false, CINZA, '-')
-    y += 17
+    y += 18
+    for (let idx = 0; idx < maquinas.length; idx++) {
+      const m = maquinas[idx]
+      if (idx % 2 === 1) ret(40, y, W - 80, 17, ZEBRA)
+      txt(cols[0] + 5, y + 12, 7.8, false, ESCURO, String(m.patrimonio || '-').slice(0, 20))
+      txt(cols[1] + 5, y + 12, 7.8, false, ESCURO, String(m.setor || '-').slice(0, 16))
+      txt(cols[2] + 5, y + 12, 7.8, false, ESCURO, String(m.leitura_anterior))
+      txt(cols[3] + 5, y + 12, 7.8, false, ESCURO, String(m.leitura_atual))
+      txt(cols[4] + 5, y + 12, 7.8, false, ESCURO, String(m.paginas_mes))
+      txt(cols[5] + 5, y + 12, 7.8, false, CINZA, '-')
+      y += 17
+    }
   }
 
   const cardY = y + 16
   const cardW = (W - 80 - 30) / 3
-  const cards = [
-    {
-      label: 'Páginas do mês',
-      valor: String(Number(fech.get('paginas_consumidas') || 0)),
-      c: NAVY,
-    },
-    { label: 'Excedentes', valor: brl(fech.get('vlr_excedentes')), c: TEAL },
-    { label: 'Total', valor: brl(fech.get('valor_final') || fech.get('total')), c: NAVY },
-  ]
+  // Modo contrato: UM cartão só, com o valor mensal. Sem páginas nem excedente.
+  const cards = somenteContrato
+    ? [
+        {
+          label: 'Valor mensal do contrato',
+          valor: brl(fech.get('valor_final') || fech.get('total')),
+          c: NAVY,
+        },
+      ]
+    : [
+        {
+          label: 'Páginas do mês',
+          valor: String(Number(fech.get('paginas_consumidas') || 0)),
+          c: NAVY,
+        },
+        { label: 'Excedentes', valor: brl(fech.get('vlr_excedentes')), c: TEAL },
+        { label: 'Total', valor: brl(fech.get('valor_final') || fech.get('total')), c: NAVY },
+      ]
+  const larguraCard = somenteContrato ? W - 80 : cardW
   for (let i = 0; i < cards.length; i++) {
-    const x = 40 + i * (cardW + 15)
-    ret(x, cardY, cardW, 56, cards[i].c)
+    const x = somenteContrato ? 40 : 40 + i * (cardW + 15)
+    ret(x, cardY, larguraCard, 56, cards[i].c)
     txt(x + 10, cardY + 17, 9.5, true, CLARO, cards[i].label)
-    txt(x + 10, cardY + 40, 14, true, BRANCO, cards[i].valor)
+    txt(
+      x + 10,
+      cardY + (somenteContrato ? 42 : 40),
+      somenteContrato ? 18 : 14,
+      true,
+      BRANCO,
+      cards[i].valor,
+    )
   }
 
   let yy = cardY + 78
+  // No modo contrato não entra a linha de excedentes: não há excedente cobrado.
   const linhas = [
     ['Impressoras (mensalidade)', fech.get('vlr_impressoras')],
     ['Dispositivos (comodato)', fech.get('vlr_dispositivos')],
     ['Servidores', fech.get('vlr_servidores')],
     ['Serviços', fech.get('vlr_servicos')],
-    [
+  ]
+  if (!somenteContrato) {
+    linhas.push([
       'Excedentes (' + Number(fech.get('paginas_excedentes') || 0) + ' págs)',
       fech.get('vlr_excedentes'),
-    ],
-  ]
+    ])
+  }
   for (let i = 0; i < linhas.length; i++) {
     const lbl = linhas[i][0]
     const v = linhas[i][1]

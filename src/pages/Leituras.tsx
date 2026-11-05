@@ -19,7 +19,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { getLeiturasAll, updateEquipamento } from '@/services/gestor'
+import {
+  getLeiturasAll,
+  updateEquipamento,
+  getContratos,
+  lancarCobrancaMensalDoContrato,
+  fechamentoDoContratoNaCompetencia,
+  valorMensalDoContrato,
+  brl,
+  type Contrato,
+} from '@/services/gestor'
 import { useAuth } from '@/hooks/use-auth'
 import { DialogEquipamento, type DialogEquipState } from '@/components/DialogEquipamento'
 import { Plus, Pencil } from 'lucide-react'
@@ -91,6 +100,15 @@ export default function Leituras() {
   const [historico, setHistorico] = useState<Record<string, number[]>>({})
   const [confirmados, setConfirmados] = useState<Record<string, boolean>>({})
   const [dialogEq, setDialogEq] = useState<DialogEquipState | null>(null)
+  // COBRANÇA MENSAL PELO VALOR DO CONTRATO (pedido dela, 05/11/2026):
+  // botão por contrato que lança o mês pelo valor mensal, sem excedente de
+  // páginas, e emite um relatório que mostra SÓ o valor do contrato.
+  const [contratos, setContratos] = useState<Contrato[]>([])
+  const [lancandoContrato, setLancandoContrato] = useState<string | null>(null)
+  const [jaLancado, setJaLancado] = useState<Record<string, boolean>>({})
+  const [msgContrato, setMsgContrato] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(
+    null,
+  )
 
   const analisar = (eqId: string, ant: number, at: number, hist: number[]): string | null => {
     if (!at || at < 0) return null
@@ -167,6 +185,68 @@ export default function Leituras() {
       })
       .catch((err) => tratarFalha(err, 'Não foi possível carregar as leituras — tente novamente.'))
       .finally(() => setCarregando(false))
+
+    // contratos ativos + checagem de quem já tem cobrança nesta competência
+    getContratos()
+      .then(async (todos) => {
+        const ativos = todos.filter((c) => c.ativo && valorMensalDoContrato(c) > 0)
+        setContratos(ativos)
+        const marcado: Record<string, boolean> = {}
+        await Promise.all(
+          ativos.map(async (c) => {
+            try {
+              marcado[c.id] = !!(await fechamentoDoContratoNaCompetencia(c.id, comp))
+            } catch {
+              marcado[c.id] = false
+            }
+          }),
+        )
+        setJaLancado(marcado)
+      })
+      .catch(() => {
+        // sem os contratos o botão simplesmente não aparece; a tela de leituras
+        // continua funcionando normalmente
+        setContratos([])
+      })
+  }
+
+  // Lança a cobrança mensal do contrato: valor fixo, sem excedente.
+  const lancarMensalDoContrato = async (c: Contrato) => {
+    const emp = c.expand?.empresa
+    if (!emp) {
+      setMsgContrato({ tipo: 'erro', texto: 'Contrato sem empresa vinculada.' })
+      return
+    }
+    const valor = valorMensalDoContrato(c)
+    if (
+      !confirm(
+        `Lançar a cobrança de ${compCarregada} para ${emp.nome}?\n\n` +
+          `Valor mensal do contrato: ${brl(valor)}\n` +
+          `Sem cobrança de páginas excedentes.\n\n` +
+          `O relatório sai só com esse valor, sem leitura e sem páginas.`,
+      )
+    )
+      return
+
+    setLancandoContrato(c.id)
+    setMsgContrato(null)
+    try {
+      const hoje = new Date()
+      const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(
+        hoje.getDate(),
+      ).padStart(2, '0')}`
+      await lancarCobrancaMensalDoContrato(c, emp, compCarregada, hojeISO)
+      setJaLancado((p) => ({ ...p, [c.id]: true }))
+      setMsgContrato({
+        tipo: 'ok',
+        texto: `Cobrança de ${compCarregada} lançada para ${emp.nome} — ${brl(valor)}, sem excedente.`,
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setMsgContrato({ tipo: 'erro', texto: 'Não foi possível lançar: ' + msg })
+    } finally {
+      setLancandoContrato(null)
+    }
   }
 
   useEffect(() => {
@@ -496,6 +576,88 @@ export default function Leituras() {
             )
           })}
         </div>
+      )}
+
+      {/* COBRANÇA MENSAL PELO VALOR DO CONTRATO (pedido dela, 05/11/2026).
+          Fica separada das leituras de propósito: aqui não se digita contador
+          nenhum — é o valor fechado do contrato, sem página excedente. */}
+      {!carregando && contratos.length > 0 && (
+        <Card className="mt-6 border-teal-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Cobrança mensal pelo valor do contrato</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Competência {compCarregada} · valor fixo do contrato, sem cobrança de páginas
+              excedentes. O relatório mostra apenas o valor mensal.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {msgContrato && (
+              <div
+                role="status"
+                className={`mb-3 flex items-center justify-between gap-2 rounded-md border p-2 text-sm ${
+                  msgContrato.tipo === 'ok'
+                    ? 'border-teal-300 bg-teal-50 text-teal-900'
+                    : 'border-red-300 bg-red-50 text-red-800'
+                }`}
+              >
+                <span>{msgContrato.texto}</span>
+                <button className="text-xs underline" onClick={() => setMsgContrato(null)}>
+                  fechar
+                </button>
+              </div>
+            )}
+            <div className="divide-y">
+              {contratos
+                .filter((c) => {
+                  const nome = c.expand?.empresa?.nome ?? ''
+                  return !busca || nome.toLowerCase().includes(busca.toLowerCase())
+                })
+                .map((c) => {
+                  const valor = valorMensalDoContrato(c)
+                  const feito = jaLancado[c.id]
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 py-2.5 flex-wrap">
+                      <div className="min-w-48 flex-1">
+                        <div className="text-sm font-medium">
+                          {c.expand?.empresa?.nome ?? c.empresa}
+                          {feito && (
+                            <Badge className="ml-2 bg-teal-600">lançado em {compCarregada}</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          mensalidade {brl(Number(c.mensalidade || 0))}
+                          {Number(c.vlr_dispositivos || 0) > 0
+                            ? ` · dispositivos ${brl(Number(c.vlr_dispositivos))}`
+                            : ''}
+                          {Number(c.vlr_servidores || 0) > 0
+                            ? ` · servidores ${brl(Number(c.vlr_servidores))}`
+                            : ''}
+                          {Number(c.vlr_servicos || 0) > 0
+                            ? ` · serviços ${brl(Number(c.vlr_servicos))}`
+                            : ''}
+                        </p>
+                      </div>
+                      <div className="w-28 text-right text-sm font-semibold text-slate-700">
+                        {brl(valor)}
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-teal-600 hover:bg-teal-700"
+                        disabled={lancandoContrato === c.id || feito}
+                        onClick={() => lancarMensalDoContrato(c)}
+                      >
+                        {lancandoContrato === c.id
+                          ? '...'
+                          : feito
+                            ? 'Já lançado'
+                            : 'Lançar cobrança mensal'}
+                      </Button>
+                    </div>
+                  )
+                })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <DialogEquipamento

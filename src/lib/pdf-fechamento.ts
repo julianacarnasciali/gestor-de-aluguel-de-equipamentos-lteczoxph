@@ -58,6 +58,12 @@ export function gerarPdfFechamento(
   // ainda não têm os valores gravados.
   const fechExt = fech as unknown as { data_leitura?: string; leitura_referencia?: string }
   const ehFatura = fech.tipo_documento === 'fatura'
+  // MODO CONTRATO (05/11/2026): cobrança mensal pelo valor do contrato.
+  // O documento mostra SÓ o valor mensal — não cita leitura, contador nem
+  // páginas impressas, porque nesse modo não existe leitura nenhuma.
+  // Fechamentos normais (por leitura) continuam com a tabela de máquinas.
+  const somenteContrato =
+    (fech as unknown as { cobranca_contrato?: boolean }).cobranca_contrato === true
   doc.setTextColor(...NAVY)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12.5)
@@ -95,7 +101,7 @@ export function gerarPdfFechamento(
   // outubro e as primeiras leituras foram tiradas em outubro — mas se referem
   // ao uso de setembro. Deixar isso escrito evita a leitura parecer errada.
   let notaLeitura = ''
-  if (fechExt.data_leitura) {
+  if (!somenteContrato && fechExt.data_leitura) {
     const dl = String(fechExt.data_leitura).slice(0, 10).split('-').reverse().join('/')
     notaLeitura = `Leitura realizada em ${dl}`
     if (fechExt.leitura_referencia)
@@ -108,69 +114,84 @@ export function gerarPdfFechamento(
     doc.text(notaLeitura, 40, 185, { maxWidth: W - 80 })
   }
 
-  // tabela de leituras
+  // tabela de leituras — NÃO existe no modo contrato (não há máquina/leitura)
   let y = notaLeitura ? 198 : 186
-  doc.setFillColor(...NAVY)
-  doc.rect(40, y, W - 80, 18, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.8)
-  const cols = [40, 148, 232, 312, 396, 462]
-  const heads = ['Máquina', 'Setor', 'Leitura ant.', 'Leitura atual', 'Páginas', 'Excedente']
-  heads.forEach((h, i) => doc.text(h, cols[i] + 5, y + 12.5))
-
-  y += 18
-  maquinas.forEach((m, idx) => {
-    if (idx % 2 === 1) {
-      doc.setFillColor(...ZEBRA)
-      doc.rect(40, y, W - 80, 17, 'F')
-    }
-    doc.setFont('helvetica', 'normal')
+  if (!somenteContrato) {
+    doc.setFillColor(...NAVY)
+    doc.rect(40, y, W - 80, 18, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.8)
-    doc.setTextColor(26, 32, 38)
-    doc.text((m.patrimonio || '-').slice(0, 20), cols[0] + 5, y + 12)
-    doc.text((m.setor || '-').slice(0, 16), cols[1] + 5, y + 12)
-    doc.text(String(m.leitura_anterior), cols[2] + 5, y + 12)
-    doc.text(String(m.leitura_atual), cols[3] + 5, y + 12)
-    doc.text(String(m.paginas_mes), cols[4] + 5, y + 12)
-    doc.setTextColor(...CINZA)
-    doc.text('-', cols[5] + 5, y + 12)
-    y += 17
-  })
+    const cols = [40, 148, 232, 312, 396, 462]
+    const heads = ['Máquina', 'Setor', 'Leitura ant.', 'Leitura atual', 'Páginas', 'Excedente']
+    heads.forEach((h, i) => doc.text(h, cols[i] + 5, y + 12.5))
+
+    y += 18
+    maquinas.forEach((m, idx) => {
+      if (idx % 2 === 1) {
+        doc.setFillColor(...ZEBRA)
+        doc.rect(40, y, W - 80, 17, 'F')
+      }
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.8)
+      doc.setTextColor(26, 32, 38)
+      doc.text((m.patrimonio || '-').slice(0, 20), cols[0] + 5, y + 12)
+      doc.text((m.setor || '-').slice(0, 16), cols[1] + 5, y + 12)
+      doc.text(String(m.leitura_anterior), cols[2] + 5, y + 12)
+      doc.text(String(m.leitura_atual), cols[3] + 5, y + 12)
+      doc.text(String(m.paginas_mes), cols[4] + 5, y + 12)
+      doc.setTextColor(...CINZA)
+      doc.text('-', cols[5] + 5, y + 12)
+      y += 17
+    })
+  }
 
   // cards de resumo
   const cardY = y + 16
   const cardW = (W - 80 - 30) / 3
-  const cards = [
-    { label: 'Páginas do mês', valor: String(fech.paginas_consumidas ?? 0), cor: NAVY },
-    { label: 'Excedentes', valor: brl(fech.vlr_excedentes), cor: TEAL },
-    { label: 'Total', valor: brl(fech.valor_final || fech.total), cor: NAVY },
-  ]
+  // No modo contrato há UM cartão só, com o valor mensal. Nada de páginas nem
+  // de excedente: foi o pedido dela (05/11).
+  const cards = somenteContrato
+    ? [{ label: 'Valor mensal do contrato', valor: brl(fech.valor_final || fech.total), cor: NAVY }]
+    : [
+        { label: 'Páginas do mês', valor: String(fech.paginas_consumidas ?? 0), cor: NAVY },
+        { label: 'Excedentes', valor: brl(fech.vlr_excedentes), cor: TEAL },
+        { label: 'Total', valor: brl(fech.valor_final || fech.total), cor: NAVY },
+      ]
+  const larguraCard = somenteContrato ? W - 80 : cardW
   cards.forEach((c, i) => {
-    const x = 40 + i * (cardW + 15)
+    const x = somenteContrato ? 40 : 40 + i * (cardW + 15)
     doc.setFillColor(...c.cor)
-    doc.rect(x, cardY, cardW, 56, 'F')
+    doc.rect(x, cardY, larguraCard, 56, 'F')
     doc.setTextColor(235, 244, 248)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9.5)
     doc.text(c.label, x + 10, cardY + 17)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
-    doc.text(c.valor, x + 10, cardY + 40)
+    doc.setFontSize(somenteContrato ? 18 : 14)
+    doc.text(c.valor, x + 10, somenteContrato ? cardY + 42 : cardY + 40)
   })
 
   // composição
   let yy = cardY + 78
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.8)
-  const linhas: [string, number][] = [
-    ['Impressoras (mensalidade)', fech.vlr_impressoras],
-    ['Dispositivos (comodato)', fech.vlr_dispositivos],
-    ['Servidores', fech.vlr_servidores],
-    ['Serviços', fech.vlr_servicos],
-    [`Excedentes (${fech.paginas_excedentes ?? 0} págs)`, fech.vlr_excedentes],
-  ]
+  // No modo contrato não entra a linha de excedentes: não há excedente cobrado.
+  const linhas: [string, number][] = somenteContrato
+    ? [
+        ['Impressoras (mensalidade)', fech.vlr_impressoras],
+        ['Dispositivos (comodato)', fech.vlr_dispositivos],
+        ['Servidores', fech.vlr_servidores],
+        ['Serviços', fech.vlr_servicos],
+      ]
+    : [
+        ['Impressoras (mensalidade)', fech.vlr_impressoras],
+        ['Dispositivos (comodato)', fech.vlr_dispositivos],
+        ['Servidores', fech.vlr_servidores],
+        ['Serviços', fech.vlr_servicos],
+        [`Excedentes (${fech.paginas_excedentes ?? 0} págs)`, fech.vlr_excedentes],
+      ]
   for (const [lbl, v] of linhas) {
     if ((Number(v) || 0) === 0 && !lbl.includes('Excedentes')) continue
     doc.setTextColor(...CINZA)

@@ -229,10 +229,107 @@ export interface Fechamento {
   // quando a leitura foi tirada e a que mês de uso ela se refere (01/11)
   data_leitura: string
   leitura_referencia: string
+  // COBRANÇA MENSAL PELO VALOR DO CONTRATO (05/11): quando true, o documento
+  // mostra SÓ o valor mensal — não cita leitura, contador nem páginas.
+  cobranca_contrato?: boolean
 }
 
 export const createFechamento = (data: Record<string, unknown>) =>
   pb.collection('fechamentos').create<Fechamento>(data)
+
+// ---------------------------------------------------------------------------
+// COBRANÇA MENSAL PELO VALOR DO CONTRATO (pedido da Juliana, 05/11/2026)
+// "lance a cobrança mensal pelo valor do contrato, que seria a média, sem
+//  cobrar a página excedente. No relatório deve constar somente o valor mensal
+//  do contrato, sem citar o número de leitura ou páginas de cópias impressas."
+//
+// Diferença para o fechamento normal (por leitura):
+//   - valor = mensalidade + dispositivos + servidores + serviços do contrato
+//   - ZERO páginas e ZERO excedente: nada é cobrado por página
+//   - cobranca_contrato = true → o PDF sai só com o valor mensal
+// O fluxo de cobrança é o MESMO: o registro nasce "aguardando" e os hooks
+// existentes cuidam do boleto/NF depois da janela de segurança.
+// ---------------------------------------------------------------------------
+const vencimentoDoContrato = (competencia: string, diaVenc?: number) => {
+  const [mes, ano] = competencia.split('/').map(Number)
+  if (!mes || !ano) return ''
+  const dia = Number(diaVenc) > 0 ? Number(diaVenc) : 5
+  // mês SEGUINTE ao da competência (regra 31/10: uso em out/2026 → vence 05/11)
+  const ultimoDoVenc = new Date(ano, mes + 1, 0).getDate()
+  const d = new Date(ano, mes, Math.min(dia, ultimoDoVenc))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`
+}
+
+const ultimoDiaDaCompetencia = (competencia: string) => {
+  const [mes, ano] = competencia.split('/').map(Number)
+  if (!mes || !ano) return ''
+  const ultimo = new Date(ano, mes, 0).getDate()
+  return `${String(ultimo).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`
+}
+
+export const valorMensalDoContrato = (c: Contrato) =>
+  Number(c.mensalidade || 0) +
+  Number(c.vlr_dispositivos || 0) +
+  Number(c.vlr_servidores || 0) +
+  Number(c.vlr_servicos || 0)
+
+// Já existe fechamento deste contrato nesta competência? (evita cobrar 2x)
+export const fechamentoDoContratoNaCompetencia = async (contrato: string, competencia: string) => {
+  const lista = await pb.collection('fechamentos').getList<Fechamento>(1, 1, {
+    filter: `contrato = "${contrato}" && competencia = "${competencia}"`,
+  })
+  return lista.items[0] ?? null
+}
+
+export const lancarCobrancaMensalDoContrato = async (
+  contrato: Contrato,
+  empresa: Empresa,
+  competencia: string,
+  hoje: string,
+) => {
+  const valor = valorMensalDoContrato(contrato)
+  if (valor <= 0) throw new Error('O contrato não tem valor mensal definido.')
+  // Trava contra cobrança duplicada: se já existe fechamento deste contrato na
+  // competência (inclusive o que a recorrência cria no dia 1º), não cria outro.
+  const existente = await fechamentoDoContratoNaCompetencia(contrato.id, competencia)
+  if (existente) {
+    throw new Error(
+      `Já existe cobrança de ${competencia} para este contrato (${existente.id}). ` +
+        'Não criei outra para não cobrar duas vezes.',
+    )
+  }
+  return pb.collection('fechamentos').create<Fechamento>({
+    contrato: contrato.id,
+    empresa: empresa.id,
+    competencia,
+    // sem leitura: nada de páginas nem de excedente nesta cobrança
+    paginas_consumidas: 0,
+    paginas_excedentes: 0,
+    vlr_impressoras: Number(contrato.mensalidade || 0),
+    vlr_excedentes: 0,
+    vlr_dispositivos: Number(contrato.vlr_dispositivos || 0),
+    vlr_servidores: Number(contrato.vlr_servidores || 0),
+    vlr_servicos: Number(contrato.vlr_servicos || 0),
+    desconto: 0,
+    total: valor,
+    valor_final: valor,
+    desconto_percentual: 0,
+    desconto_valor: 0,
+    tipo_documento: empresa.emite_nf ? 'fatura' : 'documento',
+    data_emissao: hoje,
+    data_vencimento: vencimentoDoContrato(competencia, contrato.dia_vencimento),
+    forma_pgto: 'boleto',
+    mostrar_periodo: true,
+    periodo_de: `01/${competencia}`,
+    periodo_ate: ultimoDiaDaCompetencia(competencia),
+    status: 'emitido',
+    observacoes: 'Cobrança mensal pelo valor do contrato (sem excedente de páginas)',
+    // marca o documento: o PDF sai só com o valor mensal, sem leitura/páginas
+    cobranca_contrato: true,
+  })
+}
 export const getFechamentos = (competencia: string) =>
   pb.collection('fechamentos').getFullList<Fechamento>({
     filter: `competencia = "${competencia}"`,
