@@ -23,7 +23,7 @@ import {
   getLeiturasAll,
   updateEquipamento,
   getContratos,
-  lancarCobrancaMensalDoContrato,
+  fechamentoDeEmergencia,
   fechamentoDoContratoNaCompetencia,
   valorMensalDoContrato,
   brl,
@@ -109,6 +109,12 @@ export default function Leituras() {
   const [msgContrato, setMsgContrato] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(
     null,
   )
+  // SENHA DE FECHAMENTO (pedido dela 05/11): o botão de emergência só dispara
+  // depois de digitar a senha. A conferência de verdade acontece no SERVIDOR —
+  // aqui é só para não mandar a chamada sem senha.
+  const [senhaFechamento, setSenhaFechamento] = useState('')
+  const [contratoEscolhido, setContratoEscolhido] = useState('')
+  const [abertoEmergencia, setAbertoEmergencia] = useState(false)
 
   const analisar = (eqId: string, ant: number, at: number, hist: number[]): string | null => {
     if (!at || at < 0) return null
@@ -210,20 +216,26 @@ export default function Leituras() {
       })
   }
 
-  // Lança a cobrança mensal do contrato: valor fixo, sem excedente.
-  const lancarMensalDoContrato = async (c: Contrato) => {
+  // FECHAMENTO DE EMERGÊNCIA — valor do contrato, cobrado na hora, com senha.
+  // Usado quando precisa antecipar ou quando o dia 1º falhou e a recorrente
+  // não foi lançada. A senha é conferida no servidor.
+  const lancarEmergencia = async (c: Contrato) => {
     const emp = c.expand?.empresa
     if (!emp) {
       setMsgContrato({ tipo: 'erro', texto: 'Contrato sem empresa vinculada.' })
       return
     }
+    if (!senhaFechamento.trim()) {
+      setMsgContrato({ tipo: 'erro', texto: 'Digite a senha de fechamento.' })
+      return
+    }
     const valor = valorMensalDoContrato(c)
     if (
       !confirm(
-        `Lançar a cobrança de ${compCarregada} para ${emp.nome}?\n\n` +
+        `FORÇAR o fechamento de ${compCarregada} para ${emp.nome}?\n\n` +
           `Valor mensal do contrato: ${brl(valor)}\n` +
           `Sem cobrança de páginas excedentes.\n\n` +
-          `O relatório sai só com esse valor, sem leitura e sem páginas.`,
+          `O boleto e a nota serão emitidos AGORA, sem esperar a janela de 60 minutos.`,
       )
     )
       return
@@ -231,18 +243,29 @@ export default function Leituras() {
     setLancandoContrato(c.id)
     setMsgContrato(null)
     try {
-      const hoje = new Date()
-      const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(
-        hoje.getDate(),
-      ).padStart(2, '0')}`
-      await lancarCobrancaMensalDoContrato(c, emp, compCarregada, hojeISO)
+      const r = await fechamentoDeEmergencia(c.id, compCarregada, senhaFechamento.trim())
       setJaLancado((p) => ({ ...p, [c.id]: true }))
-      setMsgContrato({
-        tipo: 'ok',
-        texto: `Cobrança de ${compCarregada} lançada para ${emp.nome} — ${brl(valor)}, sem excedente.`,
-      })
+      setSenhaFechamento('')
+      if (r.geracao && r.geracao.ok) {
+        setMsgContrato({
+          tipo: 'ok',
+          texto:
+            `Fechamento de ${compCarregada} lançado para ${emp.nome} — ${brl(valor)}. ` +
+            `Boleto e nota gerados agora.` +
+            (r.geracao.invoiceStatus ? ` Nota: ${r.geracao.invoiceStatus}.` : ''),
+        })
+      } else {
+        setMsgContrato({
+          tipo: 'erro',
+          texto:
+            `Fechamento criado (${r.fechamentoId}), mas a cobrança não foi gerada: ` +
+            `${(r.geracao && r.geracao.mensagem) || 'erro desconhecido'}. ` +
+            `Use "Emitir agora" no Financeiro.`,
+        })
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const qualquer = err as { message?: string; response?: { message?: string } }
+      const msg = qualquer?.response?.message || qualquer?.message || String(err)
       setMsgContrato({ tipo: 'erro', texto: 'Não foi possível lançar: ' + msg })
     } finally {
       setLancandoContrato(null)
@@ -393,6 +416,127 @@ export default function Leituras() {
           />
         </div>
       </div>
+
+      {/* FECHAMENTO DE EMERGÊNCIA (pedido dela 05/11/2026) — no TOPO de propósito:
+          antes o card ficou no fim da página, depois de todas as empresas, e ela
+          não o encontrou. Aqui é a primeira coisa que aparece. */}
+      {!carregando && contratos.length > 0 && (
+        <Card className="mb-6 border-amber-300 bg-amber-50/40">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="text-lg text-amber-900">Fechamento de emergência</CardTitle>
+                <p className="text-xs text-amber-800">
+                  Cobra o <strong>valor mensal do contrato</strong>, sem página excedente, e emite
+                  boleto e nota <strong>na hora</strong>. Use quando precisar antecipar ou quando o
+                  dia 1º não lançou a cobrança recorrente.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-500 text-amber-800"
+                onClick={() => setAbertoEmergencia((v) => !v)}
+              >
+                {abertoEmergencia ? 'Fechar' : 'Abrir fechamento de emergência'}
+              </Button>
+            </div>
+          </CardHeader>
+          {abertoEmergencia && (
+            <CardContent>
+              {msgContrato && (
+                <div
+                  role="status"
+                  className={`mb-3 flex items-start justify-between gap-2 rounded-md border p-2 text-sm ${
+                    msgContrato.tipo === 'ok'
+                      ? 'border-teal-300 bg-teal-50 text-teal-900'
+                      : 'border-red-300 bg-red-50 text-red-800'
+                  }`}
+                >
+                  <span>{msgContrato.texto}</span>
+                  <button
+                    className="text-xs underline whitespace-nowrap"
+                    onClick={() => setMsgContrato(null)}
+                  >
+                    fechar
+                  </button>
+                </div>
+              )}
+
+              <div className="mb-3 flex items-end gap-3 flex-wrap">
+                <div className="w-64">
+                  <Label className="text-xs">Senha de fechamento</Label>
+                  <Input
+                    type="password"
+                    className="h-9"
+                    placeholder="obrigatória a cada clique"
+                    value={senhaFechamento}
+                    onChange={(e) => setSenhaFechamento(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="w-72">
+                  <Label className="text-xs">Contrato</Label>
+                  <Select value={contratoEscolhido} onValueChange={setContratoEscolhido}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Escolha a empresa" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                      {contratos
+                        .filter((c) => valorMensalDoContrato(c) > 0)
+                        .map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.expand?.empresa?.nome ?? c.empresa} — {brl(valorMensalDoContrato(c))}
+                            {jaLancado[c.id] ? ' (já lançado)' : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {contratoEscolhido &&
+                (() => {
+                  const c = contratos.find((x) => x.id === contratoEscolhido)
+                  if (!c) return null
+                  const feito = jaLancado[c.id]
+                  return (
+                    <div className="flex items-center gap-3 flex-wrap rounded-md border border-amber-300 bg-white p-3">
+                      <div className="flex-1 min-w-48">
+                        <div className="text-sm font-medium">
+                          {c.expand?.empresa?.nome ?? c.empresa}
+                          {feito && (
+                            <Badge className="ml-2 bg-teal-600">
+                              já tem cobrança em {compCarregada}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          competência {compCarregada} · vencimento no mês seguinte · sem excedente
+                        </p>
+                      </div>
+                      <div className="text-right text-sm font-semibold text-slate-700 w-28">
+                        {brl(valorMensalDoContrato(c))}
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-amber-600 hover:bg-amber-700"
+                        disabled={lancandoContrato === c.id || feito || !senhaFechamento.trim()}
+                        onClick={() => lancarEmergencia(c)}
+                      >
+                        {lancandoContrato === c.id
+                          ? 'Gerando...'
+                          : feito
+                            ? 'Já lançado'
+                            : 'Forçar fechamento agora'}
+                      </Button>
+                    </div>
+                  )
+                })()}
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {erro && (
         <div
@@ -576,88 +720,6 @@ export default function Leituras() {
             )
           })}
         </div>
-      )}
-
-      {/* COBRANÇA MENSAL PELO VALOR DO CONTRATO (pedido dela, 05/11/2026).
-          Fica separada das leituras de propósito: aqui não se digita contador
-          nenhum — é o valor fechado do contrato, sem página excedente. */}
-      {!carregando && contratos.length > 0 && (
-        <Card className="mt-6 border-teal-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Cobrança mensal pelo valor do contrato</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Competência {compCarregada} · valor fixo do contrato, sem cobrança de páginas
-              excedentes. O relatório mostra apenas o valor mensal.
-            </p>
-          </CardHeader>
-          <CardContent>
-            {msgContrato && (
-              <div
-                role="status"
-                className={`mb-3 flex items-center justify-between gap-2 rounded-md border p-2 text-sm ${
-                  msgContrato.tipo === 'ok'
-                    ? 'border-teal-300 bg-teal-50 text-teal-900'
-                    : 'border-red-300 bg-red-50 text-red-800'
-                }`}
-              >
-                <span>{msgContrato.texto}</span>
-                <button className="text-xs underline" onClick={() => setMsgContrato(null)}>
-                  fechar
-                </button>
-              </div>
-            )}
-            <div className="divide-y">
-              {contratos
-                .filter((c) => {
-                  const nome = c.expand?.empresa?.nome ?? ''
-                  return !busca || nome.toLowerCase().includes(busca.toLowerCase())
-                })
-                .map((c) => {
-                  const valor = valorMensalDoContrato(c)
-                  const feito = jaLancado[c.id]
-                  return (
-                    <div key={c.id} className="flex items-center gap-3 py-2.5 flex-wrap">
-                      <div className="min-w-48 flex-1">
-                        <div className="text-sm font-medium">
-                          {c.expand?.empresa?.nome ?? c.empresa}
-                          {feito && (
-                            <Badge className="ml-2 bg-teal-600">lançado em {compCarregada}</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          mensalidade {brl(Number(c.mensalidade || 0))}
-                          {Number(c.vlr_dispositivos || 0) > 0
-                            ? ` · dispositivos ${brl(Number(c.vlr_dispositivos))}`
-                            : ''}
-                          {Number(c.vlr_servidores || 0) > 0
-                            ? ` · servidores ${brl(Number(c.vlr_servidores))}`
-                            : ''}
-                          {Number(c.vlr_servicos || 0) > 0
-                            ? ` · serviços ${brl(Number(c.vlr_servicos))}`
-                            : ''}
-                        </p>
-                      </div>
-                      <div className="w-28 text-right text-sm font-semibold text-slate-700">
-                        {brl(valor)}
-                      </div>
-                      <Button
-                        size="sm"
-                        className="bg-teal-600 hover:bg-teal-700"
-                        disabled={lancandoContrato === c.id || feito}
-                        onClick={() => lancarMensalDoContrato(c)}
-                      >
-                        {lancandoContrato === c.id
-                          ? '...'
-                          : feito
-                            ? 'Já lançado'
-                            : 'Lançar cobrança mensal'}
-                      </Button>
-                    </div>
-                  )
-                })}
-            </div>
-          </CardContent>
-        </Card>
       )}
 
       <DialogEquipamento

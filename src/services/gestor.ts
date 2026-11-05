@@ -243,32 +243,10 @@ export const createFechamento = (data: Record<string, unknown>) =>
 //  cobrar a página excedente. No relatório deve constar somente o valor mensal
 //  do contrato, sem citar o número de leitura ou páginas de cópias impressas."
 //
-// Diferença para o fechamento normal (por leitura):
-//   - valor = mensalidade + dispositivos + servidores + serviços do contrato
-//   - ZERO páginas e ZERO excedente: nada é cobrado por página
-//   - cobranca_contrato = true → o PDF sai só com o valor mensal
-// O fluxo de cobrança é o MESMO: o registro nasce "aguardando" e os hooks
-// existentes cuidam do boleto/NF depois da janela de segurança.
+// Valor = mensalidade + dispositivos + servidores + serviços.
+// ZERO páginas e ZERO excedente; cobranca_contrato = true faz o PDF sair só
+// com o valor mensal. A execução vive na rota de emergência (com senha).
 // ---------------------------------------------------------------------------
-const vencimentoDoContrato = (competencia: string, diaVenc?: number) => {
-  const [mes, ano] = competencia.split('/').map(Number)
-  if (!mes || !ano) return ''
-  const dia = Number(diaVenc) > 0 ? Number(diaVenc) : 5
-  // mês SEGUINTE ao da competência (regra 31/10: uso em out/2026 → vence 05/11)
-  const ultimoDoVenc = new Date(ano, mes + 1, 0).getDate()
-  const d = new Date(ano, mes, Math.min(dia, ultimoDoVenc))
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')}`
-}
-
-const ultimoDiaDaCompetencia = (competencia: string) => {
-  const [mes, ano] = competencia.split('/').map(Number)
-  if (!mes || !ano) return ''
-  const ultimo = new Date(ano, mes, 0).getDate()
-  return `${String(ultimo).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`
-}
-
 export const valorMensalDoContrato = (c: Contrato) =>
   Number(c.mensalidade || 0) +
   Number(c.vlr_dispositivos || 0) +
@@ -283,52 +261,42 @@ export const fechamentoDoContratoNaCompetencia = async (contrato: string, compet
   return lista.items[0] ?? null
 }
 
-export const lancarCobrancaMensalDoContrato = async (
-  contrato: Contrato,
-  empresa: Empresa,
+// FECHAMENTO DE EMERGÊNCIA (pedido dela 05/11/2026).
+//
+// "Este botão força um fechamento imediato do contrato. Vai ser usado quando eu
+//  precisar antecipar, ou quando o dia 1º deu erro e não lançou a recorrente."
+//
+// Quem faz o trabalho é a ROTA DO SERVIDOR (/backend/v1/cobranca/emergencia):
+// ela confere a SENHA, cria o fechamento pelo valor do contrato e força o boleto
+// + relatório + NF na hora. A comparação da senha NÃO pode ficar só na tela —
+// tudo que roda no navegador está no bundle e qualquer usuário lê.
+export const fechamentoDeEmergencia = async (
+  contratoId: string,
   competencia: string,
-  hoje: string,
+  senha: string,
 ) => {
-  const valor = valorMensalDoContrato(contrato)
-  if (valor <= 0) throw new Error('O contrato não tem valor mensal definido.')
-  // Trava contra cobrança duplicada: se já existe fechamento deste contrato na
-  // competência (inclusive o que a recorrência cria no dia 1º), não cria outro.
-  const existente = await fechamentoDoContratoNaCompetencia(contrato.id, competencia)
-  if (existente) {
-    throw new Error(
-      `Já existe cobrança de ${competencia} para este contrato (${existente.id}). ` +
-        'Não criei outra para não cobrar duas vezes.',
-    )
-  }
-  return pb.collection('fechamentos').create<Fechamento>({
-    contrato: contrato.id,
-    empresa: empresa.id,
-    competencia,
-    // sem leitura: nada de páginas nem de excedente nesta cobrança
-    paginas_consumidas: 0,
-    paginas_excedentes: 0,
-    vlr_impressoras: Number(contrato.mensalidade || 0),
-    vlr_excedentes: 0,
-    vlr_dispositivos: Number(contrato.vlr_dispositivos || 0),
-    vlr_servidores: Number(contrato.vlr_servidores || 0),
-    vlr_servicos: Number(contrato.vlr_servicos || 0),
-    desconto: 0,
-    total: valor,
-    valor_final: valor,
-    desconto_percentual: 0,
-    desconto_valor: 0,
-    tipo_documento: empresa.emite_nf ? 'fatura' : 'documento',
-    data_emissao: hoje,
-    data_vencimento: vencimentoDoContrato(competencia, contrato.dia_vencimento),
-    forma_pgto: 'boleto',
-    mostrar_periodo: true,
-    periodo_de: `01/${competencia}`,
-    periodo_ate: ultimoDiaDaCompetencia(competencia),
-    status: 'emitido',
-    observacoes: 'Cobrança mensal pelo valor do contrato (sem excedente de páginas)',
-    // marca o documento: o PDF sai só com o valor mensal, sem leitura/páginas
-    cobranca_contrato: true,
+  const resp = await pb.send<{
+    ok: boolean
+    fechamentoId: string
+    competencia: string
+    empresa: string
+    valor: number
+    vencimento: string
+    geracao: {
+      ok: boolean
+      status: number
+      paymentId: string
+      boletoUrl: string
+      invoiceId: string
+      invoiceStatus: string
+      relatorio: boolean
+      mensagem: string
+    }
+  }>('/backend/v1/cobranca/emergencia', {
+    method: 'POST',
+    body: { contratoId, competencia, senha },
   })
+  return resp
 }
 export const getFechamentos = (competencia: string) =>
   pb.collection('fechamentos').getFullList<Fechamento>({
