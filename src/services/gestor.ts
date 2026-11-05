@@ -141,6 +141,22 @@ export const createLeitura = (data: Record<string, unknown>) =>
   pb.collection('leituras').create<Leitura>(data)
 export const updateLeitura = (id: string, data: Record<string, unknown>) =>
   pb.collection('leituras').update<Leitura>(id, data)
+// Upsert por máquina + competência: a coleção tem índice único nessas duas
+// colunas, então se já existe leitura do equipamento na competência ela é
+// atualizada; só cria quando não há nenhuma.
+export const salvarLeitura = async (
+  equipamento: string,
+  competencia: string,
+  data: Record<string, unknown>,
+) => {
+  const lista = await pb.collection('leituras').getList<Leitura>(1, 1, {
+    filter: `equipamento = "${equipamento}" && competencia = "${competencia}"`,
+    sort: '-created',
+  })
+  const existente = lista.items[0]
+  if (existente) return pb.collection('leituras').update<Leitura>(existente.id, data)
+  return pb.collection('leituras').create<Leitura>(data)
+}
 
 // ---------- leitura anterior (competência anterior, última lançada) ----------
 export const getLeituraAnterior = async (equipamento: string, competencia: string) => {

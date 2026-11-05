@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   getEquipamentos,
   getLeituras,
   getLeituraAnterior,
-  createLeitura,
-  updateLeitura,
+  salvarLeitura,
   type Equipamento,
 } from '@/services/gestor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,8 +71,11 @@ interface EstadoMaquina {
 }
 
 export default function Leituras() {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
   const ehMaster = user?.perfil === 'tecnico_master'
+  // aviso inline quando alguma chamada ao backend falha
+  const [erro, setErro] = useState<string | null>(null)
   const [competencia, setCompetencia] = useState(competenciaAtual())
   // FIX 31/10: competência cujos dados estão REALMENTE na tela. Antes o
   // cabeçalho mostrava o que estava digitado no campo e a lista continuava com
@@ -110,8 +113,21 @@ export default function Leituras() {
     return null
   }
 
+  // 401 = sessão expirada: limpa a sessão e leva ao login com aviso; qualquer
+  // outra falha vira aviso inline em vez de derrubar a página
+  const tratarFalha = (err: unknown, mensagem: string) => {
+    if ((err as { status?: number } | null)?.status === 401) {
+      signOut()
+      navigate('/login?voltar=%2Fleituras&sessao=expirada', { replace: true })
+      return
+    }
+    console.error(err)
+    setErro(mensagem)
+  }
+
   const carregar = (comp: string) => {
     setCarregando(true)
+    setErro(null)
     setCompCarregada(comp)
     Promise.all([getEquipamentos(), getLeituras(comp), getLeiturasAll()])
       .then(async ([eqs, leis, todas]) => {
@@ -149,6 +165,7 @@ export default function Leituras() {
         setEstados(est)
         setMaquinas(eqs)
       })
+      .catch((err) => tratarFalha(err, 'Não foi possível carregar as leituras — tente novamente.'))
       .finally(() => setCarregando(false))
   }
 
@@ -169,6 +186,7 @@ export default function Leituras() {
       return
     }
     setSalvando(eq.id)
+    setErro(null)
     try {
       const payload: Record<string, unknown> = {
         equipamento: eq.id,
@@ -180,13 +198,8 @@ export default function Leituras() {
         paginas_mes: Math.max(0, at - ant),
         origem: est.manual ? 'manual' : 'contador',
       }
-      if (est.lancada) {
-        const l = await getLeituras(compCarregada)
-        const atual = l.find((x) => x.equipamento === eq.id)
-        if (atual) await updateLeitura(atual.id, payload)
-      } else {
-        await createLeitura(payload)
-      }
+      // upsert: atualiza a leitura existente da máquina na competência, senão cria
+      await salvarLeitura(eq.id, compCarregada, payload)
       setEstados((p) => ({
         ...p,
         [eq.id]: {
@@ -195,6 +208,8 @@ export default function Leituras() {
           alerta: analisar(eq.id, ant, at, historico[eq.id] ?? []),
         },
       }))
+    } catch (err) {
+      tratarFalha(err, 'Não foi possível lançar a leitura — tente novamente.')
     } finally {
       setSalvando(null)
     }
@@ -202,13 +217,14 @@ export default function Leituras() {
 
   const lancarPelaMedia = async (eq: Equipamento) => {
     setSalvando(eq.id)
+    setErro(null)
     try {
       const hist = historico[eq.id] ?? []
       const pags = hist.length
         ? Math.round(hist.slice(0, 6).reduce((a, b) => a + b, 0) / Math.min(6, hist.length))
         : 0
       const antAtual = Number(estados[eq.id]?.ant || 0)
-      await createLeitura({
+      await salvarLeitura(eq.id, compCarregada, {
         equipamento: eq.id,
         contrato: eq.contrato,
         competencia: compCarregada,
@@ -222,6 +238,8 @@ export default function Leituras() {
         ...p,
         [eq.id]: { ...p[eq.id], lancada: true, media: true, alerta: null },
       }))
+    } catch (err) {
+      tratarFalha(err, 'Não foi possível lançar a leitura — tente novamente.')
     } finally {
       setSalvando(null)
     }
@@ -295,6 +313,18 @@ export default function Leituras() {
           />
         </div>
       </div>
+
+      {erro && (
+        <div
+          role="alert"
+          className="mb-4 flex items-center justify-between gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800"
+        >
+          <span>{erro}</span>
+          <Button size="sm" variant="outline" onClick={() => setErro(null)}>
+            Fechar
+          </Button>
+        </div>
+      )}
 
       {carregando ? (
         <p className="text-muted-foreground">Carregando...</p>

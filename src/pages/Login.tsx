@@ -20,6 +20,8 @@ export default function Login() {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+  // ?sessao=expirada — vem da página que recebeu 401 do backend
+  const sessaoExpirada = params.get('sessao') === 'expirada'
 
   const entrar = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,6 +47,11 @@ export default function Login() {
           <CardTitle className="text-xl">Gestor de Aluguel de Equipamentos</CardTitle>
         </CardHeader>
         <CardContent>
+          {sessaoExpirada && !erro && (
+            <p className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+              Sua sessão expirou. Entre novamente para continuar.
+            </p>
+          )}
           <form onSubmit={entrar} className="space-y-4">
             <div className="space-y-1">
               <Label htmlFor="email">E-mail</Label>
