@@ -57,18 +57,48 @@ onRecordAfterUpdateSuccess((e) => {
       e.next()
       return
     }
-    const nfStatus = String(rec.getString('asaas_invoice_status') || '')
-    const emiteNF = (() => {
-      try {
-        const emp = $app.findRecordById('empresas', rec.getString('empresa'))
-        return emp.getBool('emite_nf')
-      } catch (_) {
-        return false
+    // ---------- TRAVA ÚNICA (08/11/2026) ----------
+    // A regra "boleto + nota juntos" saiu daqui e virou a rota
+    // /backend/v1/email/pode-enviar (hook email_gate.js), para valer também no
+    // serviço avulso e em qualquer tipo de cobrança novo — o e-mail do
+    // SA 2026/0003 saiu sem nota justamente porque a regra existia só neste
+    // arquivo. Aqui fica só a chamada; a lógica é uma só.
+    //
+    // FAIL-CLOSED: sem resposta da trava, NÃO envia.
+    let liberado = false
+    const motivosTrava = []
+    try {
+      const rGate = $http.send({
+        url:
+          'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev' +
+          '/backend/v1/email/pode-enviar?colecao=fechamentos&id=' +
+          encodeURIComponent(rec.id) +
+          '&t=' +
+          encodeURIComponent($secrets.get('MAESTRO_TOKEN') || ''),
+        method: 'GET',
+        timeout: 30,
+      })
+      if (rGate.statusCode === 200 && rGate.json && rGate.json.ok === true) {
+        liberado = true
+      } else if (rGate.json && rGate.json.motivos) {
+        const lista = rGate.json.motivos
+        for (let i = 0; i < lista.length; i++) motivosTrava.push(String(lista[i]))
+      } else {
+        motivosTrava.push('trava de e-mail nao respondeu (' + rGate.statusCode + ')')
       }
-    })()
-    // se emite NF, só envia quando a nota estiver AUTORIZADA (ou erro — aí manda sem a nota)
-    // SCHEDULED NÃO envia (o cliente receberia e-mail sem a nota)
-    if (emiteNF && nfStatus !== 'AUTHORIZED' && nfStatus !== 'ERROR') {
+    } catch (errGate) {
+      motivosTrava.push('trava de e-mail indisponivel: ' + String(errGate))
+    }
+    if (!liberado) {
+      // NÃO SALVA (salvar aqui = laço). Só loga: o registro continua "emitido"
+      // e ela pode reenviar depois, quando a nota estiver pronta.
+      console.warn(
+        '[email-fechamento] BLOQUEADO pela trava',
+        rec.id,
+        rec.getString('competencia'),
+        '| motivos:',
+        motivosTrava.join(' · '),
+      )
       e.next()
       return
     }

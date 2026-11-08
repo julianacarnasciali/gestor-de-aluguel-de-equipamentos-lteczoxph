@@ -30,6 +30,54 @@ onRecordAfterUpdateSuccess((e) => {
       return
     }
 
+    // ---------- TRAVA ÚNICA (08/11/2026, pedido dela) ----------
+    // "Algo que tenha boleto e nota tem que sair tudo junto. E-mail."
+    //
+    // Antes desta data a checagem de nota existia só no email_fechamento.js.
+    // Foi por isso que o e-mail do SA 2026/0003 saiu com a nota apenas AGENDADA.
+    // Agora TODO e-mail de cobrança pergunta à rota /backend/v1/email/pode-enviar
+    // (hook email_gate.js), que é o lugar único da regra — boleto + nota
+    // autorizada. Qualquer tipo de cobrança novo passa a valer sem reescrever
+    // nada aqui.
+    //
+    // FAIL-CLOSED: se a rota não responder, NÃO envia. Melhor não mandar do que
+    // mandar incompleto (foi o incidente que gerou esta trava).
+    let liberado = false
+    const motivos = []
+    try {
+      const rGate = $http.send({
+        url:
+          'https://gestor-de-aluguel-de-equipamentos-e924e.shrd00.internal.goskip.dev' +
+          '/backend/v1/email/pode-enviar?colecao=servicos&id=' +
+          encodeURIComponent(rec.id) +
+          '&t=' +
+          encodeURIComponent($secrets.get('MAESTRO_TOKEN') || ''),
+        method: 'GET',
+        timeout: 30,
+      })
+      if (rGate.statusCode === 200 && rGate.json && rGate.json.ok === true) {
+        liberado = true
+      } else if (rGate.json && rGate.json.motivos) {
+        const lista = rGate.json.motivos
+        for (let i = 0; i < lista.length; i++) motivos.push(String(lista[i]))
+      } else {
+        motivos.push('trava de e-mail nao respondeu (' + rGate.statusCode + ')')
+      }
+    } catch (errGate) {
+      motivos.push('trava de e-mail indisponivel: ' + String(errGate))
+    }
+    if (!liberado) {
+      // SEM BOLETO + NOTA NÃO ENVIA. E NÃO SALVA NADA (salvar aqui = laço).
+      console.warn(
+        '[email-servico] BLOQUEADO pela trava',
+        rec.id,
+        '| motivos:',
+        motivos.join(' · '),
+      )
+      e.next()
+      return
+    }
+
     const apiKey = $secrets.get('BREVO_API_KEY')
     const senderEmail = $secrets.get('BREVO_SENDER_EMAIL') || 'julianacrc@icloud.com'
     const senderName = $secrets.get('BREVO_SENDER_NAME') || 'LCCA Tecnologia'
