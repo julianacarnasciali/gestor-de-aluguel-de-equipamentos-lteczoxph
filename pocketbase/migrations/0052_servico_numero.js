@@ -17,13 +17,17 @@
 //
 // A numeração é feita no hook `servico_numero.js` (servidor), não na tela: se
 // dois serviços forem criados ao mesmo tempo — ela no escritório, o Luiz na rua
-// — a tela não teria como saber um do outro e sairiam dois `0001`. O índice
-// UNIQUE abaixo é a garantia final: no pior caso o segundo falha e ela tenta de
-// novo, em vez de sair documento repetido.
+// — a tela não teria como saber um do outro e sairiam dois `0001`.
 //
-// BACKFILL: os serviços que já existem (3 em 08/11/2026) ganham número em ordem
-// de criação — o mais antigo vira 0001. Isso NÃO reemite nada e não mexe em
-// `email_enviado`: o número só passa a aparecer nos relatórios daqui pra frente.
+// DUAS ARMADILHAS QUE JÁ MORDERAM (08/11, na primeira tentativa):
+//  1. ORDEM. Criar o índice UNIQUE antes do backfill falha: os serviços que já
+//     existem ficam com `numero` VAZIO, e no SQLite vários textos vazios são
+//     valores iguais entre si — o índice acusa duplicata na hora. Por isso o
+//     preenchimento vem PRIMEIRO e o índice DEPOIS.
+//  2. ÍNDICE PARCIAL. Mesmo assim o índice tem de ignorar registro sem número
+//     (`WHERE numero != ''`): serviço antigo sem número não pode impedir um
+//     serviço novo de ser criado. A garantia de "nunca dois 0001" vale só entre
+//     os que TÊM número — que é exatamente o que importa.
 migrate(
   (app) => {
     const col = app.findCollectionByNameOrId('servicos')
@@ -32,17 +36,10 @@ migrate(
     // desde o bug da migração 0031, que falhava em silêncio.
     if (!col.fields.getByName('numero')) {
       col.fields.add(new TextField({ name: 'numero', required: false, max: 20 }))
-    }
-    app.save(col)
-
-    // índice UNIQUE depois de gravar o campo: num banco novo (cópia do
-    // projeto) a tabela está vazia e não há como colidir.
-    if (!col.indexes || col.indexes.join(' ').indexOf('idx_servicos_numero') < 0) {
-      col.addIndex('idx_servicos_numero', true, 'numero', '')
       app.save(col)
     }
 
-    // ---------- backfill dos que já existem ----------
+    // ---------- 1. backfill dos que já existem (ANTES do índice) ----------
     let pendentes = []
     try {
       pendentes = app.findRecordsByFilter('servicos', 'numero = ""', 'created', 0, 0)
@@ -83,6 +80,13 @@ migrate(
         console.warn('[0052] falha ao numerar', r.id, err)
       }
     }
+
+    // ---------- 2. índice UNIQUE só entre os que têm número ----------
+    try {
+      col.removeIndex('idx_servicos_numero')
+    } catch (_) {}
+    col.addIndex('idx_servicos_numero', true, 'numero', 'numero != ""')
+    app.save(col)
   },
   (app) => {
     try {
