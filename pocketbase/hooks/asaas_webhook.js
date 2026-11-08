@@ -92,6 +92,8 @@ routerAdd('POST', '/backend/v1/webhooks/asaas', (e) => {
           if (url) s.set('asaas_invoice_url', url)
           $app.save(s)
           console.log('[asaas-webhook] NFS-e', evento, 'servico:', s.id)
+          // O e-mail estava bloqueado esperando esta nota? O save acima dispara
+          // o email_servico.js, que agora consulta a trava e libera sozinho.
         }
       } catch (_) {
         console.warn('[asaas-webhook] servico nao encontrado p/ invoice', invoiceId)

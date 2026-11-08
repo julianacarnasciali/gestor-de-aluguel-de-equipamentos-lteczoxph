@@ -284,12 +284,42 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
   let invoiceStatus = ''
   if (emiteNF) {
     try {
+      // ---------- DATA DA NOTA = HOJE (corrigido 08/11/2026) ----------
+      // REGRA DA EMPRESA, nas palavras da Juliana:
+      //   "Eu fiz o serviço, gravou, tem que gerar nota, boleto e email. Isso é
+      //    uma regra primária da empresa. Tem que funcionar tudo sozinho."
+      //   "Mesmo que a nota seja o vencimento para daqui a um mês, não
+      //    interessa."
+      //
+      // A janela de 60 min existe para ela CANCELAR a cobrança. Passada a
+      // janela, sai TUDO junto — boleto, nota e e-mail — sem esperar o
+      // vencimento.
+      //
+      // O BUG QUE ISSO CORRIGE: aqui estava `effectiveDate: venc`, ou seja, a
+      // nota era agendada para a DATA DE VENCIMENTO do boleto. Quando o
+      // vencimento estava no futuro, o Asaas criava a nota como SCHEDULED
+      // (agendada) e só transmitia à prefeitura naquele dia — foi o que
+      // aconteceu com todos os fechamentos de sexta-feira (06/11). Como a trava
+      // de e-mail exige nota AUTORIZADA, o e-mail ficava parado esperando uma
+      // nota que só sairia semanas depois.
+      //
+      // A nota é do SERVIÇO PRESTADO (competência do mês de uso), não do
+      // pagamento. Quem carrega o vencimento é o boleto, que continua igual.
+      //
+      // Fuso: America/Sao_Paulo é UTC-3 fixo (o Brasil não tem mais horário de
+      // verão desde 2019). NÃO usar toISOString().slice(0,10) — isso dá a data
+      // em UTC e, depois das 21h de Brasília, adianta um dia.
+      const hojeSP = (() => {
+        const d = new Date(Date.now() - 3 * 60 * 60 * 1000)
+        const p = (n) => String(n).padStart(2, '0')
+        return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate())
+      })()
       const corpoNF = {
         customer: customerId,
         payment: paymentId,
         value: total,
         deductions: 0,
-        effectiveDate: venc || new Date().toISOString().slice(0, 10),
+        effectiveDate: hojeSP,
         serviceDescription: descricao,
         observations: ehFechamento
           ? 'Ref. contrato de locação de bens móveis — LCCA Tecnologia'
@@ -313,6 +343,46 @@ routerAdd('POST', '/backend/v1/cobranca/processar', (e) => {
       rec.set('asaas_invoice_status', invoiceStatus)
       rec.set('asaas_invoice_url', r5.json.pdfUrl || r5.json.externalPdfUrl || '')
       $app.save(rec)
+
+      // ---------- ANTECIPA A EMISSÃO (08/11/2026) ----------
+      // A nota tem de sair junto com o boleto, não "quando a prefeitura
+      // processar". Se o Asaas devolveu a nota como SCHEDULED, pede a emissão
+      // imediata agora — esta rota NÃO cria outra nota, só antecipa o
+      // processamento da que já existe:
+      //   POST /v3/invoices/{id}/authorize
+      //
+      // Se falhar, NÃO derruba a cobrança: o boleto já existe e a nota já foi
+      // criada; o webhook INVOICE_AUTHORIZED ainda pode chegar depois e liberar
+      // o e-mail pela trava. Só registra no log.
+      if (invoiceId && invoiceStatus !== 'AUTHORIZED') {
+        try {
+          const rAuth = $http.send({
+            url: base + '/invoices/' + invoiceId + '/authorize',
+            method: 'POST',
+            headers,
+          })
+          if (rAuth.statusCode === 200) {
+            const stNovo = String((rAuth.json && rAuth.json.status) || '')
+            if (stNovo) {
+              invoiceStatus = stNovo
+              rec.set('asaas_invoice_status', stNovo)
+              const urlNovo = (rAuth.json && (rAuth.json.pdfUrl || rAuth.json.externalPdfUrl)) || ''
+              if (urlNovo) rec.set('asaas_invoice_url', urlNovo)
+              $app.save(rec)
+            }
+            console.log('[cobranca/processar] NF antecipada', invoiceId, '->', invoiceStatus)
+          } else {
+            console.warn(
+              '[cobranca/processar] antecipar NF falhou',
+              invoiceId,
+              rAuth.statusCode,
+              JSON.stringify(rAuth.json || {}).slice(0, 200),
+            )
+          }
+        } catch (errAuth) {
+          console.warn('[cobranca/processar] erro ao antecipar NF', invoiceId, errAuth)
+        }
+      }
     } catch (err) {
       return falhar('erro NF: ' + String(err))
     }
