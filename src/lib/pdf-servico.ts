@@ -2,6 +2,8 @@ import jsPDF from 'jspdf'
 
 interface DadosServico {
   id?: string
+  // número do documento (SA 2026/0001) — gerado no servidor, migração 0052
+  numero?: string
   descricao?: string
   valor?: number
   data_servico?: string
@@ -64,11 +66,13 @@ export function gerarPdfServico(
     27,
   )
 
-  // título
+  // título — com o NÚMERO do documento (SA 2026/0001) quando existir.
+  // Antes saía só "ORDEM DE SERVIÇO", sem número nenhum (pedido 08/11/2026).
   doc.setTextColor(...NAVY)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
-  doc.text('ORDEM DE SERVIÇO', 14, 46)
+  const numero = String(s.numero || '').trim()
+  doc.text(numero ? `SERVIÇO AVULSO  ${numero}` : 'SERVIÇO AVULSO', 14, 46)
 
   // dados do cliente
   doc.setFontSize(10)
@@ -143,6 +147,9 @@ export function gerarPdfServico(
     285,
   )
 
-  const nomeArquivo = `os-servico-${(empresa?.nome || 'cliente').toLowerCase().replace(/\s+/g, '-')}.pdf`
-  doc.save(nomeArquivo)
+  // nome do arquivo leva o número quando existe, para o cliente achar depois
+  const base = numero
+    ? numero.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-+|-+$/g, '')
+    : (empresa?.nome || 'cliente').toLowerCase().replace(/\s+/g, '-')
+  doc.save(`servico-avulso-${base}.pdf`)
 }

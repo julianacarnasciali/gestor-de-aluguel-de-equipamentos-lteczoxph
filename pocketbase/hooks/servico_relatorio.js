@@ -4,6 +4,11 @@
 // Autenticação: (1) usuário logado do sistema OU (2) token de manutenção via
 // ?t=<MAESTRO_TOKEN> (link do e-mail) ou header x-maestro-token.
 // TUDO inline no callback (JSVM não compartilha funções top-level).
+//
+// 08/11/2026 — NUMERAÇÃO: o título usava `rec.id` (o ID do banco, tipo
+// cp7k73ln6w43nrc). Agora usa o campo `numero` (SA 2026/0001), e o ID só
+// aparece como "código do sistema" para serviços antigos que ainda não têm
+// número — nunca no lugar do número. Quem numera é o hook servico_numero.js.
 routerAdd('GET', '/backend/v1/servico/relatorio', (e) => {
   const id = String(e.request.url.query().get('id') || '')
   if (!id) return e.badRequestError('id is required')
@@ -39,5 +44,5 @@ routerAdd('GET', '/backend/v1/servico/relatorio', (e) => {
         '<p style="color:#64748b;font-size:13px">Serviços criados antes de 26/10/2026 não têm relatório arquivado — o histórico começa nessa data.</p></div></body></html>',
     })
   }
-  return e.json(200, { html })
+  return e.json(200, { html, numero: String(rec.getString('numero') || '') })
 })

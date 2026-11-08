@@ -5,6 +5,12 @@
 // ARQUIVADO (campo relatorio_html) e o e-mail inclui link p/ visualizar —
 // histórico navegável por 6+ meses (fica no banco, sem expiração).
 // TUDO inline no callback (JSVM não compartilha funções top-level).
+//
+// 08/11/2026 — NUMERAÇÃO no relatório (pedido dela): o título era
+// "Ordem de serviço <id do banco>". Agora é "Serviço avulso SA 2026/0001". O
+// número vem do campo `numero`, preenchido pelo hook servico_numero.js no
+// momento da criação. Serviço antigo sem número cai no ID, marcado como
+// "código do sistema" — para nunca mais parecer que o ID é o número.
 onRecordAfterUpdateSuccess((e) => {
   try {
     const rec = e.record
@@ -136,6 +142,21 @@ onRecordAfterUpdateSuccess((e) => {
     if (nfUrl) {
       pagos += '<a href="' + nfUrl + '" style="color:#0d9488">🧾 Nota fiscal (PDF)</a>'
     }
+
+    // ---- NUMERAÇÃO (08/11) ----
+    // Número do documento: "SA 2026/0001". Serviço antigo (antes da migração
+    // 0052) pode estar sem número — aí mostra o ID, dito como código interno,
+    // e nunca no mesmo lugar de destaque do número.
+    const numero = String(rec.getString('numero') || '').trim()
+    const titulo = numero ? 'Serviço avulso ' + esc(numero) : 'Serviço avulso'
+    const linhaCodigo = numero
+      ? '<div class="kicker" style="color:#94a3b8;margin-top:2px">Código do sistema: ' +
+        esc(rec.id) +
+        '</div>'
+      : '<div class="kicker" style="color:#94a3b8;margin-top:2px">Código do sistema: ' +
+        esc(rec.id) +
+        ' · documento sem número (emitido antes da numeração)</div>'
+
     const relHtml =
       '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">' +
       '<title>Relatório de serviço — ' +
@@ -158,9 +179,10 @@ onRecordAfterUpdateSuccess((e) => {
       logo +
       '" alt="LCCA Tech" /></div>' +
       '<div class="body"><div class="kicker">Relatório de serviço</div>' +
-      '<h1>Ordem de serviço ' +
-      esc(rec.id) +
+      '<h1>' +
+      titulo +
       '</h1>' +
+      linhaCodigo +
       '<table>' +
       '<tr><td class="l">Cliente</td><td><b>' +
       esc(empresa.getString('nome')) +
@@ -198,10 +220,16 @@ onRecordAfterUpdateSuccess((e) => {
       '&t=' +
       encodeURIComponent($secrets.get('MAESTRO_TOKEN') || '')
 
-    const assunto = `Serviço prestado — ${empresa.getString('nome')} (${brl})`
+    const assunto = numero
+      ? 'Serviço prestado ' + numero + ' — ' + empresa.getString('nome') + ' (' + brl + ')'
+      : 'Serviço prestado — ' + empresa.getString('nome') + ' (' + brl + ')'
     let corpo =
       '<p>Olá,</p>' +
-      `<p>Segue a cobrança do serviço prestado pela <strong>LCCA Tecnologia</strong>.</p>` +
+      `<p>Segue a cobrança do serviço prestado pela <strong>LCCA Tecnologia</strong>.</p>`
+    if (numero) {
+      corpo += `<p><strong>Documento:</strong> ${esc(numero)}</p>`
+    }
+    corpo +=
       `<p><strong>Serviço:</strong> ${rec.getString('descricao')}</p>` +
       `<p><strong>Valor: ${brl}</strong> · Vencimento: <strong>${venc}</strong></p>`
     if (boletoUrl) {
@@ -253,6 +281,8 @@ onRecordAfterUpdateSuccess((e) => {
       console.log(
         '[email-servico] enviado p/ empresa',
         empresa.getString('nome'),
+        '| numero:',
+        numero || '(sem numero)',
         '| messageId:',
         r.json.messageId,
       )

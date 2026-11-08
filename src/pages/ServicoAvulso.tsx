@@ -208,6 +208,14 @@ export default function ServicoAvulso() {
           <CardContent className="py-6 space-y-4">
             <div className="flex items-center gap-2">
               <Badge className="bg-teal-600">Serviço criado</Badge>
+              {/* Número do documento (SA 2026/0001), gerado no servidor pelo
+                  hook servico_numero.js. Ele é gravado no MESMO save da
+                  criação, então já vem preenchido aqui. */}
+              {String((criado as { numero?: string }).numero || '').trim() && (
+                <Badge variant="outline" className="font-mono">
+                  {String((criado as { numero?: string }).numero)}
+                </Badge>
+              )}
               <span className="font-semibold">{brl(Number(criado.valor))}</span>
             </div>
             <p className="text-sm">{criado.descricao}</p>
